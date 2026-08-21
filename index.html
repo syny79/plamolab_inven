@@ -677,13 +677,13 @@
                                 
                                 <!-- Quick Position Presets -->
                                 <div class="flex space-x-2 pt-1">
-                                    <button type="button" onclick="setBannerPosPreset(10)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
-                                        🤖 상단 (얼굴/헤드 위주)
+                                    <button type="button" onclick="setBannerPosPreset(0)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
+                                        🤖 최상단 (얼굴/헤드 위주)
                                     </button>
                                     <button type="button" onclick="setBannerPosPreset(50)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
                                         ↔️ 정중앙
                                     </button>
-                                    <button type="button" onclick="setBannerPosPreset(90)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
+                                    <button type="button" onclick="setBannerPosPreset(100)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
                                         ⬇️ 하단 위주
                                     </button>
                                 </div>
@@ -751,7 +751,7 @@
         </div>
     </div>
 
-    <!-- 5. Excel Data Import & Export Modal (With Drag & Drop Zone and Template Download) -->
+    <!-- 5. Excel Data Import & Export Modal -->
     <div id="data-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5">
             <div class="flex justify-between items-center">
@@ -1035,7 +1035,11 @@
             // Preserve customized banner configuration across logout
             const storedBanner = localStorage.getItem(BANNER_KEY);
             if (storedBanner) {
-                window.bannerConfig = JSON.parse(storedBanner);
+                try {
+                    window.bannerConfig = JSON.parse(storedBanner);
+                } catch(e) {
+                    window.bannerConfig = { ...defaultBannerConfig };
+                }
             }
 
             selectedProductIds.clear();
@@ -1094,7 +1098,7 @@
             bannerTitle.textContent = window.bannerConfig.title || '프라모 공작소 재고 관리';
             bannerSub.textContent = window.bannerConfig.subtitle || '';
 
-            const posY = window.bannerConfig.imgPositionY !== undefined ? window.bannerConfig.imgPositionY : 50;
+            const posY = (window.bannerConfig.imgPositionY !== undefined && window.bannerConfig.imgPositionY !== null) ? window.bannerConfig.imgPositionY : 50;
 
             if (window.bannerConfig.mediaType === 'video' && window.bannerConfig.videoUrl) {
                 bannerImg.classList.add('hidden');
@@ -1106,27 +1110,6 @@
                 bannerImg.src = window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
                 bannerImg.style.objectPosition = `center ${posY}%`;
             }
-        }
-
-        function openAdminModal(tab = 'master') {
-            switchAdminTab(tab);
-            renderMasterPills();
-
-            // Fill banner form fields
-            document.getElementById('banner-active-toggle').checked = window.bannerConfig.active;
-            document.getElementById('banner-media-type').value = window.bannerConfig.mediaType || 'image';
-            document.getElementById('banner-img-url').value = window.bannerConfig.imgUrl || '';
-            document.getElementById('banner-video-url').value = window.bannerConfig.videoUrl || '';
-            document.getElementById('banner-input-title').value = window.bannerConfig.title || '';
-            document.getElementById('banner-input-subtitle').value = window.bannerConfig.subtitle || '';
-
-            const posY = window.bannerConfig.imgPositionY !== undefined ? window.bannerConfig.imgPositionY : 50;
-            document.getElementById('banner-img-pos-y').value = posY;
-
-            toggleBannerMediaInputs();
-            updateBannerPosPreview(posY);
-
-            document.getElementById('admin-modal').classList.remove('hidden');
         }
 
         function updateBannerPosPreview(val) {
@@ -1144,15 +1127,20 @@
             else if (val >= 80) label += ' (하단 위주)';
             else if (val >= 40 && val <= 60) label += ' (정중앙)';
 
-            posTextElem.textContent = label;
+            if (posTextElem) posTextElem.textContent = label;
 
-            previewImgElem.src = imgUrlInput || window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
-            previewImgElem.style.objectPosition = `center ${val}%`;
+            if (previewImgElem) {
+                previewImgElem.src = imgUrlInput || window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
+                previewImgElem.style.objectPosition = `center ${val}%`;
+            }
         }
 
         function setBannerPosPreset(val) {
-            document.getElementById('banner-img-pos-y').value = val;
-            updateBannerPosPreview(val);
+            const rangeElem = document.getElementById('banner-img-pos-y');
+            if (rangeElem) {
+                rangeElem.value = val;
+                updateBannerPosPreview(val);
+            }
         }
 
         function handleBannerSave(e) {
@@ -1573,7 +1561,6 @@
             document.getElementById('product-modal').classList.add('hidden');
         }
 
-        /* Image Handling Functions */
         function updateImagePreviewFromUrl(url) {
             const wrapper = document.getElementById('image-preview-wrapper');
             const thumb = document.getElementById('image-preview-thumb');
@@ -1744,7 +1731,12 @@
             document.getElementById('banner-input-title').value = window.bannerConfig.title || '';
             document.getElementById('banner-input-subtitle').value = window.bannerConfig.subtitle || '';
 
+            const posY = window.bannerConfig.imgPositionY !== undefined ? window.bannerConfig.imgPositionY : 50;
+            document.getElementById('banner-img-pos-y').value = posY;
+
             toggleBannerMediaInputs();
+            updateBannerPosPreview(posY);
+
             document.getElementById('admin-modal').classList.remove('hidden');
         }
 
@@ -1834,22 +1826,6 @@
             }
         }
 
-        function handleBannerSave(e) {
-            e.preventDefault();
-
-            window.bannerConfig.active = document.getElementById('banner-active-toggle').checked;
-            window.bannerConfig.mediaType = document.getElementById('banner-media-type').value;
-            window.bannerConfig.imgUrl = document.getElementById('banner-img-url').value.trim();
-            window.bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
-            window.bannerConfig.title = document.getElementById('banner-input-title').value.trim();
-            window.bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
-
-            saveBanner();
-            renderBanner();
-            closeAdminModal();
-            showToast('가로 배너 설정이 반영되었습니다.', 'success');
-        }
-
         async function autoLookupBarcode() {
             const barcode = document.getElementById('input-barcode').value.trim();
             if (!barcode) {
@@ -1928,7 +1904,6 @@
             document.getElementById('data-modal').classList.add('hidden');
         }
 
-        /* Drag & Drop Listener Setup for Excel Modal */
         function setupExcelDragAndDrop() {
             const dropZone = document.getElementById('excel-drop-zone');
             if (!dropZone) return;
