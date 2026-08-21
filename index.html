@@ -879,17 +879,30 @@
         // Firebase Auth State Listener
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                // syny79@gmail.com 계정 검증 및 권한 제한
+                if (user.email && user.email !== 'syny79@gmail.com') {
+                    window.showToast('⚠️ 접근 권한이 없는 계정입니다. (syny79@gmail.com 전용)', 'warning');
+                    signOut(auth);
+                    return;
+                }
+
                 currentUser = user;
                 window.updateAuthUI(true, user.displayName || user.email || '관리자 님');
                 window.showToast(`${user.displayName || '관리자'} 님 환영합니다!`, 'success');
 
-                // 1. Subscribe to user Firestore inventory document
-                const userDocRef = doc(doc(db, "inventories", user.uid));
+                // 1. Subscribe to user Firestore inventory document (Corrected doc reference)
+                const userDocRef = doc(db, "inventories", user.uid);
                 unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        if (data.products) window.products = data.products;
-                        if (data.masterData) window.masterData = data.masterData;
+                        if (data.products) {
+                            window.products = data.products;
+                            localStorage.setItem('pramo_workshop_inventory_v3', JSON.stringify(data.products));
+                        }
+                        if (data.masterData) {
+                            window.masterData = data.masterData;
+                            localStorage.setItem('pramo_workshop_master_v3', JSON.stringify(data.masterData));
+                        }
                         if (data.bannerConfig) {
                             window.bannerConfig = data.bannerConfig;
                             localStorage.setItem('pramo_workshop_banner_v3', JSON.stringify(data.bannerConfig));
@@ -1935,7 +1948,7 @@
 
         // PWA Live Mobile Scanner Mode Handler (Enhanced with HTTPS & Permission Checks)
         async function openScannerModal() {
-            // 1. Check if page is accessed over HTTPS or Localhost (Required for UserMedia camera access)
+            // 1. Check if page is accessed over HTTPS or Localhost
             const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
             if (!isSecure) {
                 showToast('⚠️ 스마트폰 카메라 스캔은 HTTPS 보안 주소에서만 작동합니다. Netlify 또는 GitHub Pages 주소로 접속해 주세요.', 'warning');
@@ -2068,7 +2081,7 @@
             if (file) processUploadedFile(file);
         }
 
-        // Shared File Processor (Supports both file input click & Drag and Drop)
+        // Shared File Processor
         function processUploadedFile(file) {
             const reader = new FileReader();
 
