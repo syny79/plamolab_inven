@@ -105,7 +105,7 @@
                             <span>구글 로그인</span>
                         </button>
                         <div id="user-info" class="hidden flex items-center space-x-2">
-                            <span id="user-display-name" class="text-xs font-semibold text-slate-700 max-w-[100px] truncate">관리자 님</span>
+                            <span id="user-display-name" class="text-xs font-semibold text-slate-700 max-w-[120px] truncate">관리자 님</span>
                             <button onclick="handleLogout()" class="text-xs text-slate-400 hover:text-red-500 underline ml-1">로그아웃</button>
                         </div>
                     </div>
@@ -137,7 +137,8 @@
                     <p id="banner-subtitle" class="text-xs md:text-sm text-slate-200 max-w-xl font-medium line-clamp-2">
                         스마트폰 바코드 스캔으로 입출고를 손쉽게 관리하고, 엑셀 기준정보와 통합하여 효율적인 매장을 운영하세요.
                     </p>
-                    <div id="banner-btn-wrapper" class="pt-2">
+                    <!-- Banner Action Button Wrapper (Hidden when logged out) -->
+                    <div id="banner-btn-wrapper" class="pt-2 hidden">
                         <a id="banner-link-btn" href="#" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95">
                             <span id="banner-btn-text">자세히 보기</span>
                             <i class="fa-solid fa-arrow-right"></i>
@@ -767,6 +768,115 @@
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
 
+    <!-- Firebase SDK Integration Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // User's Firebase SDK Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDZelJfU6WDjbHRjM-sJcRrWvjOB-_NWzE",
+            authDomain: "plamolab-inven.firebaseapp.com",
+            projectId: "plamolab-inven",
+            storageBucket: "plamolab-inven.firebasestorage.app",
+            messagingSenderId: "743939840334",
+            appId: "1:743939840334:web:37ba2de0310f3f2176e61f",
+            measurementId: "G-28ZZGEF4Y3"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let currentUser = null;
+        let unsubscribeDoc = null;
+
+        // Firebase Auth State Listener
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                updateAuthUI(true, user.displayName || user.email || '관리자 님');
+                showToast(`${user.displayName || '관리자'} 님 환영합니다!`, 'success');
+
+                // Subscribe to user Firestore inventory document
+                const userDocRef = doc(db, "inventories", user.uid);
+                unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.products) window.products = data.products;
+                        if (data.masterData) window.masterData = data.masterData;
+                        if (data.bannerConfig) window.bannerConfig = data.bannerConfig;
+
+                        window.renderBanner();
+                        window.renderCategories();
+                        window.renderProducts();
+                        window.updateStats();
+                    } else {
+                        // Initialize default document in Firestore if not exists
+                        window.syncToFirestore();
+                    }
+                }, (error) => {
+                    console.error("Firestore sync error:", error);
+                });
+
+            } else {
+                currentUser = null;
+                if (unsubscribeDoc) {
+                    unsubscribeDoc();
+                    unsubscribeDoc = null;
+                }
+                updateAuthUI(false);
+                window.clearUserData();
+            }
+        });
+
+        // Google Login Action
+        window.handleGoogleLogin = async function() {
+            try {
+                showToast('구글 로그인 창을 띄웁니다...', 'info');
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Google Login Error:", error);
+                if (error.code === 'auth/unauthorized-domain') {
+                    showToast('Firebase 콘솔의 승인된 도메인에 현재 사이트 주소를 추가하세요.', 'warning');
+                } else if (error.code === 'auth/popup-closed-by-user') {
+                    showToast('로그인 창이 닫혔습니다.', 'info');
+                } else {
+                    showToast(`로그인 실패: ${error.message}`, 'warning');
+                }
+            }
+        };
+
+        // Logout Action
+        window.handleLogout = async function() {
+            try {
+                await signOut(auth);
+                showToast('로그아웃 되었습니다.', 'info');
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+        };
+
+        // Function to push current state to Firestore
+        window.syncToFirestore = async function() {
+            if (!currentUser) return;
+            try {
+                const userDocRef = doc(db, "inventories", currentUser.uid);
+                await setDoc(userDocRef, {
+                    products: window.products || [],
+                    masterData: window.masterData || {},
+                    bannerConfig: window.bannerConfig || {},
+                    updatedAt: Date.now()
+                });
+            } catch (err) {
+                console.error("Error writing to Firestore:", err);
+            }
+        };
+    </script>
+
     <!-- JavaScript Application Logic -->
     <script>
         // Storage Keys
@@ -794,7 +904,7 @@
             linkUrl: '#'
         };
 
-        // Initial Product Samples with image links
+        // Initial Product Samples
         const sampleProducts = [
             { id: '1', barcode: '8801043014830', name: '농심 신라면 5입', category: '식품', spec: '120g*5', stock: 24, costPrice: 3800, sellPrice: 4500, location: 'A-1-1', supplier: '농심', memo: '인기 라면 품목, 1열 진열', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() },
             { id: '2', barcode: '8801062631025', name: '삼다수 생수 2L', category: '식품', spec: '2000ml', stock: 3, costPrice: 850, sellPrice: 1200, location: 'A-1-2', supplier: '삼다수', memo: '재고 부족 주의', image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 1000 },
@@ -802,16 +912,16 @@
             { id: '4', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 3000 }
         ];
 
-        // State variables
-        let products = [];
-        let masterData = { ...defaultMasterData };
-        let bannerConfig = { ...defaultBannerConfig };
+        // Global State variables
+        window.products = [];
+        window.masterData = { ...defaultMasterData };
+        window.bannerConfig = { ...defaultBannerConfig };
+
         let currentCategory = '전체';
         let viewMode = 'table'; // 'table' or 'grid'
         let scanner = null;
         let activeDetailProductId = null;
         let confirmResolver = null;
-        let isLoggedIn = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             loadLocalData();
@@ -819,51 +929,80 @@
             renderCategories();
             renderProducts();
             updateStats();
-            updateAuthUI(false); // Initialize with logged-out state by default
         });
 
-        // Toggle UI depending on authentication state
-        function updateAuthUI(loggedIn) {
-            isLoggedIn = loggedIn;
+        function loadLocalData() {
+            const storedProd = localStorage.getItem(STORAGE_KEY);
+            const storedMaster = localStorage.getItem(MASTER_KEY);
+            const storedBanner = localStorage.getItem(BANNER_KEY);
+
+            if (storedProd) window.products = JSON.parse(storedProd);
+            if (storedMaster) window.masterData = JSON.parse(storedMaster);
+            if (storedBanner) window.bannerConfig = JSON.parse(storedBanner);
+        }
+
+        function updateAuthUI(loggedIn, displayName = '관리자 님') {
             const authActions = document.getElementById('auth-actions');
             const mainContent = document.getElementById('main-body-content');
             const btnLogin = document.getElementById('btn-login');
             const userInfo = document.getElementById('user-info');
             const bannerEditBtn = document.getElementById('banner-edit-btn');
+            const bannerBtnWrapper = document.getElementById('banner-btn-wrapper');
+            const userDisp = document.getElementById('user-display-name');
 
             if (loggedIn) {
                 if (authActions) authActions.classList.remove('hidden');
                 if (mainContent) mainContent.classList.remove('hidden');
                 if (bannerEditBtn) bannerEditBtn.classList.remove('hidden');
+                if (bannerBtnWrapper) bannerBtnWrapper.classList.remove('hidden');
                 if (btnLogin) btnLogin.classList.add('hidden');
                 if (userInfo) userInfo.classList.remove('hidden');
+                if (userDisp) userDisp.textContent = displayName;
             } else {
                 if (authActions) authActions.classList.add('hidden');
                 if (mainContent) mainContent.classList.add('hidden');
                 if (bannerEditBtn) bannerEditBtn.classList.add('hidden');
+                if (bannerBtnWrapper) bannerBtnWrapper.classList.add('hidden');
                 if (btnLogin) btnLogin.classList.remove('hidden');
                 if (userInfo) userInfo.classList.add('hidden');
             }
         }
 
-        function saveProducts() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+        function clearUserData() {
+            window.products = [];
+            window.masterData = { ...defaultMasterData };
+            window.bannerConfig = { ...defaultBannerConfig };
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(MASTER_KEY);
+            localStorage.removeItem(BANNER_KEY);
+
+            renderBanner();
+            renderCategories();
+            renderProducts();
             updateStats();
         }
 
+        function saveProducts() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.products));
+            updateStats();
+            if (typeof window.syncToFirestore === 'function') window.syncToFirestore();
+        }
+
         function saveMaster() {
-            localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+            localStorage.setItem(MASTER_KEY, JSON.stringify(window.masterData));
+            if (typeof window.syncToFirestore === 'function') window.syncToFirestore();
         }
 
         function saveBanner() {
-            localStorage.setItem(BANNER_KEY, JSON.stringify(bannerConfig));
+            localStorage.setItem(BANNER_KEY, JSON.stringify(window.bannerConfig));
+            if (typeof window.syncToFirestore === 'function') window.syncToFirestore();
         }
 
         function updateStats() {
-            const totalItems = products.length;
-            const totalQty = products.reduce((acc, cur) => acc + Number(cur.stock || 0), 0);
-            const totalCost = products.reduce((acc, cur) => acc + (Number(cur.costPrice || 0) * Number(cur.stock || 0)), 0);
-            const lowStockCount = products.filter(p => Number(p.stock) <= 5).length;
+            const totalItems = window.products.length;
+            const totalQty = window.products.reduce((acc, cur) => acc + Number(cur.stock || 0), 0);
+            const totalCost = window.products.reduce((acc, cur) => acc + (Number(cur.costPrice || 0) * Number(cur.stock || 0)), 0);
+            const lowStockCount = window.products.filter(p => Number(p.stock) <= 5).length;
 
             document.getElementById('stat-total-items').textContent = `${totalItems}종`;
             document.getElementById('stat-total-qty').textContent = `${totalQty.toLocaleString()}개`;
@@ -871,7 +1010,6 @@
             document.getElementById('stat-low-stock').textContent = `${lowStockCount}개`;
         }
 
-        // Render Hero Banner
         function renderBanner() {
             const bannerSection = document.getElementById('hero-banner-section');
             const bannerImg = document.getElementById('banner-img');
@@ -881,44 +1019,43 @@
             const bannerBtnText = document.getElementById('banner-btn-text');
             const bannerLinkBtn = document.getElementById('banner-link-btn');
 
-            if (!bannerConfig.active) {
+            if (!window.bannerConfig.active) {
                 bannerSection.classList.add('hidden');
                 return;
             } else {
                 bannerSection.classList.remove('hidden');
             }
 
-            bannerTitle.textContent = bannerConfig.title || '프라모 공작소 재고 관리';
-            bannerSub.textContent = bannerConfig.subtitle || '';
-            bannerBtnText.textContent = bannerConfig.btnText || '자세히 보기';
-            bannerLinkBtn.href = bannerConfig.linkUrl || '#';
-            if (bannerConfig.linkUrl === '#' || !bannerConfig.linkUrl) {
+            bannerTitle.textContent = window.bannerConfig.title || '프라모 공작소 재고 관리';
+            bannerSub.textContent = window.bannerConfig.subtitle || '';
+            bannerBtnText.textContent = window.bannerConfig.btnText || '자세히 보기';
+            bannerLinkBtn.href = window.bannerConfig.linkUrl || '#';
+            if (window.bannerConfig.linkUrl === '#' || !window.bannerConfig.linkUrl) {
                 bannerLinkBtn.onclick = (e) => { e.preventDefault(); openAdminModal('master'); };
             } else {
                 bannerLinkBtn.onclick = null;
             }
 
-            if (bannerConfig.mediaType === 'video' && bannerConfig.videoUrl) {
+            if (window.bannerConfig.mediaType === 'video' && window.bannerConfig.videoUrl) {
                 bannerImg.classList.add('hidden');
                 bannerVideo.classList.remove('hidden');
-                bannerVideo.src = bannerConfig.videoUrl;
+                bannerVideo.src = window.bannerConfig.videoUrl;
             } else {
                 bannerVideo.classList.add('hidden');
                 bannerImg.classList.remove('hidden');
-                bannerImg.src = bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
+                bannerImg.src = window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
             }
         }
 
-        // Render Categories Navigation
         function renderCategories() {
             const catContainer = document.getElementById('category-list');
             catContainer.innerHTML = '';
 
-            const categoryList = masterData.categories && masterData.categories.length > 0 ? masterData.categories : ['전체', '기타'];
+            const categoryList = window.masterData.categories && window.masterData.categories.length > 0 ? window.masterData.categories : ['전체', '기타'];
 
             categoryList.forEach(cat => {
                 const isSelected = cat === currentCategory;
-                const count = cat === '전체' ? products.length : products.filter(p => (p.category || '미지정') === cat).length;
+                const count = cat === '전체' ? window.products.length : window.products.filter(p => (p.category || '미지정') === cat).length;
                 
                 const btn = document.createElement('button');
                 btn.className = `w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex justify-between items-center transition-colors ${
@@ -964,7 +1101,7 @@
             const sortVal = document.getElementById('sort-select').value;
 
             // Filter products
-            let filtered = products.filter(p => {
+            let filtered = window.products.filter(p => {
                 const pCategory = p.category || '미지정';
                 const matchCategory = currentCategory === '전체' || pCategory === currentCategory;
                 const matchSearch = !searchKeyword || 
@@ -1099,17 +1236,17 @@
         }
 
         function quickAdjustStock(id, delta) {
-            const idx = products.findIndex(p => p.id === id);
+            const idx = window.products.findIndex(p => p.id === id);
             if (idx !== -1) {
-                products[idx].stock = Math.max(0, Number(products[idx].stock) + delta);
-                products[idx].updatedAt = Date.now();
+                window.products[idx].stock = Math.max(0, Number(window.products[idx].stock) + delta);
+                window.products[idx].updatedAt = Date.now();
                 saveProducts();
                 renderProducts();
             }
         }
 
         function openDetailModal(id) {
-            const product = products.find(p => p.id === id);
+            const product = window.products.find(p => p.id === id);
             if (!product) return;
 
             activeDetailProductId = id;
@@ -1121,7 +1258,7 @@
             document.getElementById('detail-sell-price').textContent = `₩${Number(product.sellPrice||0).toLocaleString()}`;
             document.getElementById('detail-stock-qty').textContent = product.stock || 0;
             document.getElementById('detail-location').textContent = product.location || '미지정';
-            document.getElementById('detail-supplier').textContent = product.supplier || '미지정'; // Brand name
+            document.getElementById('detail-supplier').textContent = product.supplier || '미지정';
             document.getElementById('detail-memo').textContent = product.memo || '등록된 메모가 없습니다.';
 
             // Margin rate calculation
@@ -1157,7 +1294,7 @@
         function adjustDetailStock(delta) {
             if (!activeDetailProductId) return;
             quickAdjustStock(activeDetailProductId, delta);
-            const p = products.find(item => item.id === activeDetailProductId);
+            const p = window.products.find(item => item.id === activeDetailProductId);
             if (p) {
                 document.getElementById('detail-stock-qty').textContent = p.stock;
             }
@@ -1167,7 +1304,7 @@
             if (!activeDetailProductId) return;
             const confirmed = await openConfirmModal('상품 삭제', '이 상품을 정말 삭제하시겠습니까?');
             if (confirmed) {
-                products = products.filter(p => p.id !== activeDetailProductId);
+                window.products = window.products.filter(p => p.id !== activeDetailProductId);
                 saveProducts();
                 closeDetailModal();
                 renderProducts();
@@ -1185,7 +1322,7 @@
             populateMasterDropdowns();
 
             if (editId) {
-                const p = products.find(item => item.id === editId);
+                const p = window.products.find(item => item.id === editId);
                 if (p) {
                     document.getElementById('product-modal-title').textContent = '상품 정보 수정';
                     document.getElementById('edit-product-id').value = p.id;
@@ -1221,13 +1358,12 @@
             document.getElementById('product-modal').classList.add('hidden');
         }
 
-        // Helper to populate dropdowns from Master Data
         function populateMasterDropdowns() {
             const fields = [
-                { key: 'category', list: masterData.categories.filter(c => c !== '전체') },
-                { key: 'spec', list: masterData.specs },
-                { key: 'location', list: masterData.locations },
-                { key: 'supplier', list: masterData.suppliers }
+                { key: 'category', list: window.masterData.categories.filter(c => c !== '전체') },
+                { key: 'spec', list: window.masterData.specs },
+                { key: 'location', list: window.masterData.locations },
+                { key: 'supplier', list: window.masterData.suppliers }
             ];
 
             fields.forEach(field => {
@@ -1300,7 +1436,7 @@
             const spec = getDropdownValue('spec');
             const stock = Number(document.getElementById('input-stock').value || 0);
             const location = getDropdownValue('location');
-            const supplier = getDropdownValue('supplier'); // Brand
+            const supplier = getDropdownValue('supplier');
             const costPrice = Number(document.getElementById('input-cost').value || 0);
             const sellPrice = Number(document.getElementById('input-sell').value || 0);
             const image = document.getElementById('input-image').value.trim();
@@ -1312,9 +1448,9 @@
             }
 
             if (editId) {
-                const idx = products.findIndex(p => p.id === editId);
+                const idx = window.products.findIndex(p => p.id === editId);
                 if (idx !== -1) {
-                    products[idx] = { ...products[idx], barcode, name, category, spec, stock, costPrice, sellPrice, location, supplier, image, memo, updatedAt: Date.now() };
+                    window.products[idx] = { ...window.products[idx], barcode, name, category, spec, stock, costPrice, sellPrice, location, supplier, image, memo, updatedAt: Date.now() };
                     showToast('상품 정보가 성공적으로 수정되었습니다.', 'success');
                 }
             } else {
@@ -1333,7 +1469,7 @@
                     memo,
                     updatedAt: Date.now()
                 };
-                products.unshift(newProduct);
+                window.products.unshift(newProduct);
                 showToast('새 상품이 등록되었습니다.', 'success');
             }
 
@@ -1348,14 +1484,14 @@
             renderMasterPills();
 
             // Fill banner form fields
-            document.getElementById('banner-active-toggle').checked = bannerConfig.active;
-            document.getElementById('banner-media-type').value = bannerConfig.mediaType || 'image';
-            document.getElementById('banner-img-url').value = bannerConfig.imgUrl || '';
-            document.getElementById('banner-video-url').value = bannerConfig.videoUrl || '';
-            document.getElementById('banner-input-title').value = bannerConfig.title || '';
-            document.getElementById('banner-input-subtitle').value = bannerConfig.subtitle || '';
-            document.getElementById('banner-input-btn-text').value = bannerConfig.btnText || '';
-            document.getElementById('banner-input-link').value = bannerConfig.linkUrl || '';
+            document.getElementById('banner-active-toggle').checked = window.bannerConfig.active;
+            document.getElementById('banner-media-type').value = window.bannerConfig.mediaType || 'image';
+            document.getElementById('banner-img-url').value = window.bannerConfig.imgUrl || '';
+            document.getElementById('banner-video-url').value = window.bannerConfig.videoUrl || '';
+            document.getElementById('banner-input-title').value = window.bannerConfig.title || '';
+            document.getElementById('banner-input-subtitle').value = window.bannerConfig.subtitle || '';
+            document.getElementById('banner-input-btn-text').value = window.bannerConfig.btnText || '';
+            document.getElementById('banner-input-link').value = window.bannerConfig.linkUrl || '';
 
             toggleBannerMediaInputs();
             document.getElementById('admin-modal').classList.remove('hidden');
@@ -1388,7 +1524,7 @@
             const renderPillGroup = (key, containerId) => {
                 const container = document.getElementById(containerId);
                 container.innerHTML = '';
-                const items = masterData[key] || [];
+                const items = window.masterData[key] || [];
 
                 items.forEach((item, index) => {
                     if (!item || item === '전체' || item === '미지정') return;
@@ -1415,9 +1551,9 @@
             const val = input.value.trim();
             if (!val) return;
 
-            if (!masterData[key]) masterData[key] = [];
-            if (!masterData[key].includes(val)) {
-                masterData[key].push(val);
+            if (!window.masterData[key]) window.masterData[key] = [];
+            if (!window.masterData[key].includes(val)) {
+                window.masterData[key].push(val);
                 saveMaster();
                 renderMasterPills();
                 renderCategories();
@@ -1427,8 +1563,8 @@
         }
 
         function removeMasterItem(key, index) {
-            if (masterData[key] && masterData[key][index]) {
-                const removed = masterData[key].splice(index, 1);
+            if (window.masterData[key] && window.masterData[key][index]) {
+                const removed = window.masterData[key].splice(index, 1);
                 saveMaster();
                 renderMasterPills();
                 renderCategories();
@@ -1450,14 +1586,14 @@
         function handleBannerSave(e) {
             e.preventDefault();
 
-            bannerConfig.active = document.getElementById('banner-active-toggle').checked;
-            bannerConfig.mediaType = document.getElementById('banner-media-type').value;
-            bannerConfig.imgUrl = document.getElementById('banner-img-url').value.trim();
-            bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
-            bannerConfig.title = document.getElementById('banner-input-title').value.trim();
-            bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
-            bannerConfig.btnText = document.getElementById('banner-input-btn-text').value.trim();
-            bannerConfig.linkUrl = document.getElementById('banner-input-link').value.trim();
+            window.bannerConfig.active = document.getElementById('banner-active-toggle').checked;
+            window.bannerConfig.mediaType = document.getElementById('banner-media-type').value;
+            window.bannerConfig.imgUrl = document.getElementById('banner-img-url').value.trim();
+            window.bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
+            window.bannerConfig.title = document.getElementById('banner-input-title').value.trim();
+            window.bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
+            window.bannerConfig.btnText = document.getElementById('banner-input-btn-text').value.trim();
+            window.bannerConfig.linkUrl = document.getElementById('banner-input-link').value.trim();
 
             saveBanner();
             renderBanner();
@@ -1501,7 +1637,7 @@
                 showToast('검색할 바코드 또는 상품명을 입력하세요.', 'warning');
                 return;
             }
-            const found = products.find(p => p.barcode === val);
+            const found = window.products.find(p => p.barcode === val);
             if (found) {
                 openDetailModal(found.id);
             } else {
@@ -1549,9 +1685,14 @@
                 reader.onload = (event) => {
                     try {
                         const data = JSON.parse(event.target.result);
-                        if (Array.isArray(data)) {
-                            products = data;
+                        if (data.products && Array.isArray(data.products)) {
+                            window.products = data.products;
+                            if (data.masterData) window.masterData = data.masterData;
+                            if (data.bannerConfig) window.bannerConfig = data.bannerConfig;
                             saveProducts();
+                            saveMaster();
+                            saveBanner();
+                            renderBanner();
                             renderCategories();
                             renderProducts();
                             closeDataModal();
@@ -1590,7 +1731,7 @@
                                 updatedAt: Date.now()
                             }));
 
-                            products = [...imported, ...products];
+                            window.products = [...imported, ...window.products];
                             saveProducts();
                         }
 
@@ -1599,11 +1740,11 @@
                             const masterSheet = workbook.Sheets['기준정보'];
                             const masterJson = XLSX.utils.sheet_to_json(masterSheet);
                             masterJson.forEach(row => {
-                                if (row['카테고리'] && !masterData.categories.includes(row['카테고리'])) masterData.categories.push(row['카테고리']);
-                                if (row['진열위치'] && !masterData.locations.includes(row['진열위치'])) masterData.locations.push(row['진열위치']);
+                                if (row['카테고리'] && !window.masterData.categories.includes(row['카테고리'])) window.masterData.categories.push(row['카테고리']);
+                                if (row['진열위치'] && !window.masterData.locations.includes(row['진열위치'])) window.masterData.locations.push(row['진열위치']);
                                 const brandVal = row['브랜드'] || row['공급처'];
-                                if (brandVal && !masterData.suppliers.includes(brandVal)) masterData.suppliers.push(brandVal);
-                                if (row['규격'] && !masterData.specs.includes(row['규격'])) masterData.specs.push(row['규격']);
+                                if (brandVal && !window.masterData.suppliers.includes(brandVal)) window.masterData.suppliers.push(brandVal);
+                                if (row['규격'] && !window.masterData.specs.includes(row['규격'])) window.masterData.specs.push(row['규격']);
                             });
                             saveMaster();
                         }
@@ -1622,7 +1763,7 @@
         }
 
         function exportToExcel() {
-            const exportData = products.map((p, index) => ({
+            const exportData = window.products.map((p, index) => ({
                 'No': index + 1,
                 '대표이미지': p.image || '',
                 '바코드': p.barcode,
@@ -1638,13 +1779,13 @@
             }));
 
             const masterExportData = [];
-            const maxLen = Math.max(masterData.categories.length, masterData.locations.length, masterData.suppliers.length, masterData.specs.length);
+            const maxLen = Math.max(window.masterData.categories.length, window.masterData.locations.length, window.masterData.suppliers.length, window.masterData.specs.length);
             for (let i = 0; i < maxLen; i++) {
                 masterExportData.push({
-                    '카테고리': masterData.categories[i] || '',
-                    '진열위치': masterData.locations[i] || '',
-                    '브랜드': masterData.suppliers[i] || '',
-                    '규격': masterData.specs[i] || ''
+                    '카테고리': window.masterData.categories[i] || '',
+                    '진열위치': window.masterData.locations[i] || '',
+                    '브랜드': window.masterData.suppliers[i] || '',
+                    '규격': window.masterData.specs[i] || ''
                 });
             }
 
@@ -1660,7 +1801,7 @@
         }
 
         function exportToJson() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ products, masterData, bannerConfig }, null, 2));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ products: window.products, masterData: window.masterData, bannerConfig: window.bannerConfig }, null, 2));
             const dlAnchorElem = document.createElement('a');
             dlAnchorElem.setAttribute("href", dataStr);
             dlAnchorElem.setAttribute("download", `pramo_inventory_backup_${Date.now()}.json`);
@@ -1668,9 +1809,9 @@
         }
 
         function loadSampleData() {
-            products = [...sampleProducts];
-            masterData = { ...defaultMasterData };
-            bannerConfig = { ...defaultBannerConfig };
+            window.products = [...sampleProducts];
+            window.masterData = { ...defaultMasterData };
+            window.bannerConfig = { ...defaultBannerConfig };
             saveProducts();
             saveMaster();
             saveBanner();
@@ -1726,17 +1867,6 @@
                 toast.classList.add('opacity-0', 'translate-y-2');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
-        }
-
-        function handleGoogleLogin() {
-            showToast('구글 계정으로 로그인되었습니다.', 'success');
-            updateAuthUI(true);
-            document.getElementById('user-display-name').textContent = '관리자 님';
-        }
-
-        function handleLogout() {
-            updateAuthUI(false);
-            showToast('로그아웃 되었습니다.', 'info');
         }
     </script>
 </body>
