@@ -122,10 +122,10 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col gap-6 w-full">
 
         <!-- Top Wide Ad / Video Banner Section -->
-        <section id="hero-banner-section" class="w-full relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-slate-900 text-white transition-all">
-            <div id="banner-media-container" class="banner-aspect w-full relative flex items-center justify-center overflow-hidden">
+        <section id="hero-banner-section" class="w-full relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-black text-white transition-all">
+            <div id="banner-media-container" class="banner-aspect w-full relative flex items-center justify-center overflow-hidden bg-black">
                 <!-- Background Media (Image or Video) -->
-                <img id="banner-img" src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80" alt="공작소 메인 배너" class="absolute inset-0 w-full h-full object-cover opacity-60">
+                <img id="banner-img" src="" alt="공작소 메인 배너" class="absolute inset-0 w-full h-full object-cover opacity-60 transition-all duration-300" style="object-position: center 50%;">
                 <iframe id="banner-video" class="hidden absolute inset-0 w-full h-full object-cover pointer-events-none opacity-70" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
                 
                 <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/50 to-transparent"></div>
@@ -632,7 +632,7 @@
                 <div id="admin-panel-banner" class="hidden space-y-4">
                     <div class="bg-amber-50 border border-amber-100 p-3.5 rounded-xl text-xs text-amber-800">
                         <div class="font-bold"><i class="fa-solid fa-bullhorn mr-1"></i>상단 가로 광고 배너 관리</div>
-                        <p class="text-[11px] text-amber-700 mt-0.5">메인 화면 상단에 노출되는 가로 배너의 이미지, 동영상(YouTube Embed/MP4), 제목 및 클릭 링크를 자유롭게 변경할 수 있습니다.</p>
+                        <p class="text-[11px] text-amber-700 mt-0.5">메인 화면 상단에 노출되는 가로 배너의 이미지, 동영상(YouTube Embed/MP4), 노출 위치(상단/얼굴 위주, 중앙 등) 및 제목을 자유롭게 변경할 수 있습니다.</p>
                     </div>
 
                     <form onsubmit="handleBannerSave(event)" class="space-y-3 text-xs">
@@ -655,9 +655,48 @@
                         </div>
 
                         <!-- Image URL -->
-                        <div id="banner-img-input-group">
-                            <label class="block font-semibold text-slate-600 mb-1">배너 이미지 URL</label>
-                            <input type="url" id="banner-img-url" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://images.unsplash.com/...">
+                        <div id="banner-img-input-group" class="space-y-3">
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">배너 이미지 URL</label>
+                                <input type="url" id="banner-img-url" oninput="updateBannerPosPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://images.unsplash.com/...">
+                            </div>
+
+                            <!-- Image Focus Area / Vertical Position Control Slider -->
+                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="font-bold text-slate-700 text-xs flex items-center space-x-1">
+                                        <i class="fa-solid fa-up-down-left-right text-blue-600"></i>
+                                        <span>배너 이미지 노출 위치 조절 (상/하 위치)</span>
+                                    </label>
+                                    <span id="banner-pos-val-text" class="text-xs font-mono font-bold text-blue-600">50% (중앙)</span>
+                                </div>
+                                <p class="text-[11px] text-slate-500">
+                                    💡 프라모델 건담 등 이미지의 집중 노출 영역(얼굴/헤드, 상단, 중앙, 하단)을 슬라이더로 직접 선택하세요.
+                                </p>
+                                <input type="range" id="banner-img-pos-y" min="0" max="100" value="50" oninput="updateBannerPosPreview(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                                
+                                <!-- Quick Position Presets -->
+                                <div class="flex space-x-2 pt-1">
+                                    <button type="button" onclick="setBannerPosPreset(10)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
+                                        🤖 상단 (얼굴/헤드 위주)
+                                    </button>
+                                    <button type="button" onclick="setBannerPosPreset(50)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
+                                        ↔️ 정중앙
+                                    </button>
+                                    <button type="button" onclick="setBannerPosPreset(90)" class="px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-md hover:bg-blue-50 hover:border-blue-300 font-semibold text-slate-700 shadow-sm transition-colors">
+                                        ⬇️ 하단 위주
+                                    </button>
+                                </div>
+
+                                <!-- Live Banner Preview -->
+                                <div class="mt-2 relative rounded-xl overflow-hidden border border-slate-300 h-28 bg-black flex items-center justify-center">
+                                    <img id="banner-preview-img" src="" alt="미리보기" class="w-full h-full object-cover opacity-80 transition-all duration-150" style="object-position: center 50%;">
+                                    <div class="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent pointer-events-none"></div>
+                                    <span class="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-sm shadow-sm">
+                                        실시간 위치 미리보기
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Video URL -->
@@ -920,6 +959,7 @@
             active: true,
             mediaType: 'image',
             imgUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80',
+            imgPositionY: 50, // 0 = top focus (face/head), 50 = center, 100 = bottom focus
             videoUrl: '',
             title: '프라모 공작소 & 모형재고 통합 관리',
             subtitle: '스마트폰 바코드 스캔과 엑셀 기준정보 연동으로 정밀하고 스마트하게 매장을 운영하세요.'
@@ -1054,6 +1094,8 @@
             bannerTitle.textContent = window.bannerConfig.title || '프라모 공작소 재고 관리';
             bannerSub.textContent = window.bannerConfig.subtitle || '';
 
+            const posY = window.bannerConfig.imgPositionY !== undefined ? window.bannerConfig.imgPositionY : 50;
+
             if (window.bannerConfig.mediaType === 'video' && window.bannerConfig.videoUrl) {
                 bannerImg.classList.add('hidden');
                 bannerVideo.classList.remove('hidden');
@@ -1062,7 +1104,72 @@
                 bannerVideo.classList.add('hidden');
                 bannerImg.classList.remove('hidden');
                 bannerImg.src = window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
+                bannerImg.style.objectPosition = `center ${posY}%`;
             }
+        }
+
+        function openAdminModal(tab = 'master') {
+            switchAdminTab(tab);
+            renderMasterPills();
+
+            // Fill banner form fields
+            document.getElementById('banner-active-toggle').checked = window.bannerConfig.active;
+            document.getElementById('banner-media-type').value = window.bannerConfig.mediaType || 'image';
+            document.getElementById('banner-img-url').value = window.bannerConfig.imgUrl || '';
+            document.getElementById('banner-video-url').value = window.bannerConfig.videoUrl || '';
+            document.getElementById('banner-input-title').value = window.bannerConfig.title || '';
+            document.getElementById('banner-input-subtitle').value = window.bannerConfig.subtitle || '';
+
+            const posY = window.bannerConfig.imgPositionY !== undefined ? window.bannerConfig.imgPositionY : 50;
+            document.getElementById('banner-img-pos-y').value = posY;
+
+            toggleBannerMediaInputs();
+            updateBannerPosPreview(posY);
+
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        function updateBannerPosPreview(val) {
+            if (val === undefined) {
+                val = document.getElementById('banner-img-pos-y').value;
+            }
+            val = Number(val);
+
+            const posTextElem = document.getElementById('banner-pos-val-text');
+            const previewImgElem = document.getElementById('banner-preview-img');
+            const imgUrlInput = document.getElementById('banner-img-url').value.trim();
+
+            let label = `${val}%`;
+            if (val <= 20) label += ' (상단/얼굴 위주)';
+            else if (val >= 80) label += ' (하단 위주)';
+            else if (val >= 40 && val <= 60) label += ' (정중앙)';
+
+            posTextElem.textContent = label;
+
+            previewImgElem.src = imgUrlInput || window.bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
+            previewImgElem.style.objectPosition = `center ${val}%`;
+        }
+
+        function setBannerPosPreset(val) {
+            document.getElementById('banner-img-pos-y').value = val;
+            updateBannerPosPreview(val);
+        }
+
+        function handleBannerSave(e) {
+            e.preventDefault();
+
+            window.bannerConfig.active = document.getElementById('banner-active-toggle').checked;
+            window.bannerConfig.mediaType = document.getElementById('banner-media-type').value;
+            window.bannerConfig.imgUrl = document.getElementById('banner-img-url').value.trim();
+            window.bannerConfig.imgPositionY = Number(document.getElementById('banner-img-pos-y').value || 50);
+            window.bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
+            window.bannerConfig.title = document.getElementById('banner-input-title').value.trim();
+            window.bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
+
+            saveBanner();
+            renderBanner();
+            closeAdminModal();
+            showToast('가로 배너 설정이 반영되었습니다.', 'success');
         }
 
         function renderCategories() {
