@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프라모 공작소 - 재고 & 상품 관리</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (Excel file processing) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- HTML5 QRCode Scanner (Camera Barcode Scan) -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        table td, table th {
+            white-space: nowrap;
+        }
+        .banner-aspect {
+            aspect-ratio: 21 / 5;
+        }
+        @media (max-width: 768px) {
+            .banner-aspect {
+                aspect-ratio: 16 / 7;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Brand & Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-200">
+                        <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-900 leading-tight">프라모 공작소</h1>
+                        <p class="text-xs text-slate-500">바코드 기반 상품 & 엑셀 재고 통합 관리 시스템</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons & Auth -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <!-- Auth Protected Action Buttons (Hidden when logged out) -->
+                    <div id="auth-actions" class="hidden flex items-center space-x-2 sm:space-x-3">
+                        <!-- Admin Settings (Banner & Master Data) Button -->
+                        <button onclick="openAdminModal()" class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors" title="기준정보 및 배너 관리">
+                            <i class="fa-solid fa-sliders text-amber-600"></i>
+                            <span class="hidden md:inline">기준정보/배너 관리</span>
+                        </button>
+
+                        <!-- Barcode Camera Scan Button -->
+                        <button onclick="openScannerModal()" class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                            <i class="fa-solid fa-barcode text-blue-600"></i>
+                            <span class="hidden sm:inline">스마트폰 스캔</span>
+                        </button>
+
+                        <!-- Excel Upload/Download Button -->
+                        <button onclick="openDataModal()" class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+                            <i class="fa-solid fa-file-excel text-emerald-600"></i>
+                            <span class="hidden sm:inline">엑셀 데이터 연동</span>
+                        </button>
+                    </div>
+
+                    <!-- Firebase Status & Login -->
+                    <div id="auth-status-container" class="flex items-center pl-2 border-l border-slate-200">
+                        <button id="btn-login" onclick="handleGoogleLogin()" class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors">
+                            <i class="fa-brands fa-google"></i>
+                            <span>구글 로그인</span>
+                        </button>
+                        <div id="user-info" class="hidden flex items-center space-x-2">
+                            <span id="user-display-name" class="text-xs font-semibold text-slate-700 max-w-[100px] truncate">관리자 님</span>
+                            <button onclick="handleLogout()" class="text-xs text-slate-400 hover:text-red-500 underline ml-1">로그아웃</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col gap-6 w-full">
+
+        <!-- Top Wide Ad / Video Banner Section -->
+        <section id="hero-banner-section" class="w-full relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-slate-900 text-white transition-all">
+            <div id="banner-media-container" class="banner-aspect w-full relative flex items-center justify-center overflow-hidden">
+                <!-- Background Media (Image or Video) -->
+                <img id="banner-img" src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80" alt="공작소 메인 배너" class="absolute inset-0 w-full h-full object-cover opacity-60">
+                <iframe id="banner-video" class="hidden absolute inset-0 w-full h-full object-cover pointer-events-none opacity-70" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                
+                <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-900/50 to-transparent"></div>
+
+                <!-- Overlay Content -->
+                <div class="relative z-10 p-6 md:p-10 w-full max-w-3xl space-y-2">
+                    <span id="banner-badge" class="inline-block px-3 py-1 bg-blue-600/80 backdrop-blur-md text-white text-[11px] font-bold rounded-full uppercase tracking-wider">
+                        프라모 공작소 공동체
+                    </span>
+                    <h2 id="banner-title" class="text-xl md:text-3xl font-black text-white leading-tight drop-shadow-md">
+                        프라모델 & 공구 재고 관리의 시작
+                    </h2>
+                    <p id="banner-subtitle" class="text-xs md:text-sm text-slate-200 max-w-xl font-medium line-clamp-2">
+                        스마트폰 바코드 스캔으로 입출고를 손쉽게 관리하고, 엑셀 기준정보와 통합하여 효율적인 매장을 운영하세요.
+                    </p>
+                    <div id="banner-btn-wrapper" class="pt-2">
+                        <a id="banner-link-btn" href="#" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95">
+                            <span id="banner-btn-text">자세히 보기</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Banner Quick Admin Edit Link (Hidden when logged out) -->
+                <button id="banner-edit-btn" onclick="openAdminModal('banner')" class="hidden absolute top-3 right-3 z-20 px-2.5 py-1.5 bg-black/40 hover:bg-black/70 text-white/80 hover:text-white rounded-lg text-xs backdrop-blur-md transition-colors flex items-center space-x-1">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span class="text-[11px]">배너 수정</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Main Body Grid Layout (Hidden until Login) -->
+        <div id="main-body-content" class="hidden flex flex-col md:flex-row gap-6 w-full">
+
+            <!-- Sidebar: Categories & Master Data Summary -->
+            <aside class="w-full md:w-64 flex-shrink-0 space-y-6">
+                <!-- Add Item CTA -->
+                <button onclick="openProductModal()" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md shadow-blue-200 flex items-center justify-center space-x-2 transition-all transform active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>새 상품 직접 등록</span>
+                </button>
+
+                <!-- Stock Status Summary Card -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                        <span>재고 현황 요약</span>
+                        <i class="fa-solid fa-chart-pie text-slate-300"></i>
+                    </h3>
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <div class="text-[11px] text-slate-500">총 품목 수</div>
+                            <div id="stat-total-items" class="text-base font-bold text-slate-800">0종</div>
+                        </div>
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <div class="text-[11px] text-slate-500">총 재고 수량</div>
+                            <div id="stat-total-qty" class="text-base font-bold text-blue-600">0개</div>
+                        </div>
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 col-span-2">
+                            <div class="text-[11px] text-slate-500">총 매입 평가액</div>
+                            <div id="stat-total-cost" class="text-sm font-bold text-slate-800 mt-0.5">₩0</div>
+                        </div>
+                        <div class="bg-amber-50 p-2.5 rounded-lg border border-amber-100 col-span-2 flex justify-between items-center px-3">
+                            <div class="text-[11px] font-semibold text-amber-700">재고 부족 경고 (5개 이하)</div>
+                            <div id="stat-low-stock" class="text-sm font-black text-amber-600">0개</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Categories Navigation List -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">카테고리 분류</h3>
+                        <button onclick="openAdminModal('master-category')" class="text-xs text-blue-600 hover:text-blue-700 font-semibold">+ 관리</button>
+                    </div>
+                    <nav id="category-list" class="space-y-1 custom-scrollbar max-h-60 overflow-y-auto">
+                        <!-- Dynamically populated categories -->
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 space-y-4 min-w-0">
+
+                <!-- Search, Quick Barcode Lookup & View Mode Header -->
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+                    <!-- Search & Barcode Quick Input -->
+                    <div class="relative w-full md:w-96">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                        <input type="text" id="search-input" oninput="handleSearch()" placeholder="상품명, 바코드, 카테고리, 위치, 브랜드 검색..." 
+                            class="w-full pl-10 pr-24 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                        <button onclick="quickBarcodeSearch()" class="absolute right-1 top-1 bottom-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-md border border-blue-200 transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-barcode"></i>
+                            <span>조회</span>
+                        </button>
+                    </div>
+
+                    <!-- View Mode Switch & Sorting Options -->
+                    <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
+                        <select id="sort-select" onchange="renderProducts()" class="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="name-asc">상품명 순</option>
+                            <option value="stock-asc">재고 적은순</option>
+                            <option value="stock-desc">재고 많은순</option>
+                            <option value="cost-desc">매입가 높은순</option>
+                            <option value="sell-desc">판매가 높은순</option>
+                            <option value="recent">최근 수정순</option>
+                        </select>
+
+                        <div class="bg-slate-100 p-1 rounded-lg flex space-x-1 border border-slate-200">
+                            <button onclick="setViewMode('table')" id="btn-view-table" class="px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 bg-white text-blue-600 shadow-sm" title="엑셀 테이블 뷰">
+                                <i class="fa-solid fa-table"></i>
+                                <span>테이블</span>
+                            </button>
+                            <button onclick="setViewMode('grid')" id="btn-view-grid" class="px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 text-slate-600 hover:text-slate-900" title="카드 그리드 뷰">
+                                <i class="fa-solid fa-border-all"></i>
+                                <span>카드</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. Table View Container (With Product Image Column) -->
+                <div id="table-view-container" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead class="bg-slate-100 text-slate-600 border-b border-slate-200 font-bold uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-3 text-center w-10">No</th>
+                                    <th class="p-3 text-center w-14">이미지</th>
+                                    <th class="p-3">바코드</th>
+                                    <th class="p-3">브랜드</th>
+                                    <th class="p-3">상품명</th>
+                                    <th class="p-3">카테고리</th>
+                                    <th class="p-3">규격 / 옵션</th>
+                                    <th class="p-3 text-center">현재재고</th>
+                                    <th class="p-3 text-right">매입가</th>
+                                    <th class="p-3 text-right">판매가</th>
+                                    <th class="p-3">진열위치</th>
+                                    <th class="p-3">비고</th>
+                                    <th class="p-3 text-center">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="product-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                                <!-- Rows rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. Grid Card View Container -->
+                <div id="grid-view-container" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Cards rendered dynamically -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center space-y-3">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400 text-2xl">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                    <div class="text-slate-600 font-medium text-sm">등록된 상품이 없거나 검색 결과가 없습니다.</div>
+                    <p class="text-xs text-slate-400">새 상품을 등록하거나 '사전 재고List_매입가.xlsx' 엑셀 파일을 업로드하세요.</p>
+                    <div class="flex justify-center space-x-2 pt-2">
+                        <button onclick="openProductModal()" class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                            + 상품 직접 등록
+                        </button>
+                        <button onclick="openDataModal()" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors">
+                            엑셀 파일 불러오기
+                        </button>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals Section -->
+
+    <!-- 1. Product Detail Popup Modal -->
+    <div id="detail-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 transform transition-all">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span id="detail-category-badge" class="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-semibold">카테고리</span>
+                    <span id="detail-spec-badge" class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold">규격/옵션</span>
+                </div>
+                <button onclick="closeDetailModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <!-- Product Top View -->
+                <div class="flex gap-4 items-start">
+                    <img id="detail-image" src="" alt="상품 이미지" class="w-28 h-28 object-cover rounded-xl border border-slate-200 bg-slate-50 flex-shrink-0 shadow-sm">
+                    <div class="space-y-1.5 flex-1 min-w-0">
+                        <h2 id="detail-name" class="text-lg font-bold text-slate-900 leading-snug break-words">상품명</h2>
+                        <div class="flex items-center space-x-1.5 text-xs text-slate-500">
+                            <i class="fa-solid fa-barcode text-slate-400"></i>
+                            <span id="detail-barcode" class="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-bold">000000000000</span>
+                        </div>
+                        <div class="pt-1 flex items-baseline space-x-3 text-xs">
+                            <div>
+                                <span class="text-slate-400">매입가:</span>
+                                <span id="detail-cost-price" class="font-bold text-slate-800 ml-1">₩0</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400">판매가:</span>
+                                <span id="detail-sell-price" class="font-bold text-blue-600 ml-1">₩0</span>
+                            </div>
+                        </div>
+                        <div id="detail-margin-rate" class="text-[11px] text-emerald-600 font-semibold">마진율: 0%</div>
+                    </div>
+                </div>
+
+                <!-- Stock Quantity Quick Control Box -->
+                <div class="bg-blue-50/70 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-blue-900">현재 보유 재고량</div>
+                        <div id="detail-stock-status-text" class="text-xs text-blue-600 mt-0.5 font-medium">정상 재고</div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="adjustDetailStock(-1)" class="w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 flex items-center justify-center text-lg active:scale-95 shadow-sm">-</button>
+                        <span id="detail-stock-qty" class="text-2xl font-black text-blue-700 min-w-[3rem] text-center">0</span>
+                        <button onclick="adjustDetailStock(1)" class="w-9 h-9 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 flex items-center justify-center text-lg active:scale-95 shadow-sm">+</button>
+                    </div>
+                </div>
+
+                <!-- Extended Metadata Fields (Location & Brand) -->
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div class="text-slate-400 font-semibold mb-1"><i class="fa-solid fa-location-dot mr-1"></i>진열/창고 위치</div>
+                        <div id="detail-location" class="font-bold text-slate-700">미지정</div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div class="text-slate-400 font-semibold mb-1"><i class="fa-solid fa-copyright mr-1"></i>브랜드</div>
+                        <div id="detail-supplier" class="font-bold text-slate-700">미지정</div>
+                    </div>
+                </div>
+
+                <!-- Memo / Info Details -->
+                <div class="space-y-1.5">
+                    <div class="text-xs font-bold text-slate-400 uppercase">비고 / 메모</div>
+                    <p id="detail-memo" class="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 min-h-[50px] whitespace-pre-line leading-relaxed">
+                        등록된 메모가 없습니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                <button onclick="deleteProductFromDetail()" class="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1">
+                    <i class="fa-regular fa-trash-can mr-1"></i>상품 삭제
+                </button>
+                <div class="space-x-2">
+                    <button onclick="editProductFromDetail()" class="px-4 py-2 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-300 transition-colors">
+                        정보 수정
+                    </button>
+                    <button onclick="closeDetailModal()" class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                        확인
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Product Create / Edit Modal -->
+    <div id="product-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <h3 id="product-modal-title" class="text-sm font-bold text-slate-800">새 상품 등록</h3>
+                <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="product-form" onsubmit="handleProductSubmit(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="edit-product-id">
+
+                <!-- Barcode Input & Auto Lookup -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">바코드 (Barcode) <span class="text-red-500">*</span></label>
+                    <div class="flex gap-2">
+                        <input type="text" id="input-barcode" required placeholder="스마트폰 복사 바코드 입력 또는 스캔"
+                            class="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="button" onclick="autoLookupBarcode()" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>자동 찾기</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">💡 바코드 수집 DB에서 데이터 및 대표 이미지를 자동으로 탐색합니다.</p>
+                </div>
+
+                <!-- Product Name -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">상품명 <span class="text-red-500">*</span></label>
+                    <input type="text" id="input-name" required placeholder="상품 품명 입력"
+                        class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Category & Specification -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">카테고리 (기준정보 선택/입력)</label>
+                        <select id="input-category-select" onchange="toggleCustomInput('category')" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="input-category-custom" placeholder="직접 입력 (미지정 시 빈칸)" class="hidden mt-1.5 w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">규격 / 옵션</label>
+                        <select id="input-spec-select" onchange="toggleCustomInput('spec')" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="input-spec-custom" placeholder="직접 입력 (예: 1/144, 200ml)" class="hidden mt-1.5 w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Stock Qty & Location -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">재고 수량</label>
+                        <input type="number" id="input-stock" min="0" value="1" required
+                            class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">진열 / 창고 위치</label>
+                        <select id="input-location-select" onchange="toggleCustomInput('location')" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="input-location-custom" placeholder="직접 위치 입력 (예: A-1-2)" class="hidden mt-1.5 w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Cost Price & Selling Price -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">매입가 (원)</label>
+                        <input type="number" id="input-cost" min="0" step="10" placeholder="0"
+                            class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">판매가 (원)</label>
+                        <input type="number" id="input-sell" min="0" step="10" placeholder="0"
+                            class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Brand Field -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">브랜드</label>
+                    <select id="input-supplier-select" onchange="toggleCustomInput('supplier')" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Populated dynamically -->
+                    </select>
+                    <input type="text" id="input-supplier-custom" placeholder="직접 브랜드 입력 (예: 반다이, 타미야)" class="hidden mt-1.5 w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Image URL -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">상품 이미지 URL (입력 시 목록에 즉시 노출)</label>
+                    <input type="url" id="input-image" placeholder="https://... (웹 이미지 주소 복사 후 붙여넣기)"
+                        class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-[11px] text-slate-400 mt-1">💡 구글이나 웹 사이트에서 이미지 주소를 복사해 입력하면 상품 목록에 섬네일이 표시됩니다.</p>
+                </div>
+
+                <!-- Memo -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">비고 / 참고사항</label>
+                    <textarea id="input-memo" rows="2" placeholder="상품 특이사항, 주의사항 등"
+                        class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+
+                <!-- Buttons -->
+                <div class="pt-2 flex justify-end space-x-2 border-t border-slate-100">
+                    <button type="button" onclick="closeProductModal()" class="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200">
+                        취소
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 shadow-sm">
+                        저장하기
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Admin & Master Data / Banner Settings Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
+            <!-- Header Tabs -->
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div class="flex space-x-2">
+                    <button onclick="switchAdminTab('master')" id="admin-tab-master" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm">
+                        <i class="fa-solid fa-list-check mr-1.5"></i>기준정보 관리
+                    </button>
+                    <button onclick="switchAdminTab('banner')" id="admin-tab-banner" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">
+                        <i class="fa-solid fa-rectangle-ad mr-1.5"></i>가로 광고 배너 설정
+                    </button>
+                </div>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                <!-- TAB 1: Master Data Management -->
+                <div id="admin-panel-master" class="space-y-6">
+                    <div class="bg-blue-50 border border-blue-100 p-3.5 rounded-xl text-xs text-blue-800 space-y-1">
+                        <div class="font-bold"><i class="fa-solid fa-circle-info mr-1"></i>엑셀 기준정보 통합 관리</div>
+                        <p class="text-[11px] text-blue-600">상품 등록 시 사용되는 기준 목록(카테고리, 위치, 브랜드, 규격)을 직접 등록/수정/삭제할 수 있습니다. 기준정보를 지정하지 않은 상품은 빈칸(미지정)으로 자유롭게 관리 가능합니다.</p>
+                    </div>
+
+                    <!-- Category Master -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-tags text-blue-600"></i>
+                                <span>카테고리 기준목록</span>
+                            </h4>
+                            <div class="flex space-x-1">
+                                <input type="text" id="new-master-category" placeholder="새 카테고리" class="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md w-36">
+                                <button onclick="addMasterItem('categories', 'new-master-category')" class="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-md hover:bg-blue-700">+ 추가</button>
+                            </div>
+                        </div>
+                        <div id="master-categories-pills" class="flex flex-wrap gap-1.5 pt-1">
+                            <!-- Chips rendered dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Location Master -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-location-dot text-indigo-600"></i>
+                                <span>진열 / 창고 위치 기준목록</span>
+                            </h4>
+                            <div class="flex space-x-1">
+                                <input type="text" id="new-master-location" placeholder="예: A-1-1, 창고B" class="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md w-36">
+                                <button onclick="addMasterItem('locations', 'new-master-location')" class="px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-md hover:bg-indigo-700">+ 추가</button>
+                            </div>
+                        </div>
+                        <div id="master-locations-pills" class="flex flex-wrap gap-1.5 pt-1">
+                            <!-- Chips rendered dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Brand Master (formerly Supplier) -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-copyright text-emerald-600"></i>
+                                <span>브랜드 기준목록</span>
+                            </h4>
+                            <div class="flex space-x-1">
+                                <input type="text" id="new-master-supplier" placeholder="예: 반다이, 타미야, 아카데미" class="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md w-36">
+                                <button onclick="addMasterItem('suppliers', 'new-master-supplier')" class="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-md hover:bg-emerald-700">+ 추가</button>
+                            </div>
+                        </div>
+                        <div id="master-suppliers-pills" class="flex flex-wrap gap-1.5 pt-1">
+                            <!-- Chips rendered dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Spec Master -->
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                                <i class="fa-solid fa-ruler-combined text-amber-600"></i>
+                                <span>규격 / 옵션 기준목록</span>
+                            </h4>
+                            <div class="flex space-x-1">
+                                <input type="text" id="new-master-spec" placeholder="예: 1/144, 2L, 5입" class="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md w-36">
+                                <button onclick="addMasterItem('specs', 'new-master-spec')" class="px-3 py-1 bg-amber-600 text-white text-xs font-bold rounded-md hover:bg-amber-700">+ 추가</button>
+                            </div>
+                        </div>
+                        <div id="master-specs-pills" class="flex flex-wrap gap-1.5 pt-1">
+                            <!-- Chips rendered dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: Banner Management -->
+                <div id="admin-panel-banner" class="hidden space-y-4">
+                    <div class="bg-amber-50 border border-amber-100 p-3.5 rounded-xl text-xs text-amber-800">
+                        <div class="font-bold"><i class="fa-solid fa-bullhorn mr-1"></i>상단 가로 광고 배너 관리</div>
+                        <p class="text-[11px] text-amber-700 mt-0.5">메인 화면 상단에 노출되는 가로 배너의 이미지, 동영상(YouTube Embed/MP4), 제목 및 클릭 링크를 자유롭게 변경할 수 있습니다.</p>
+                    </div>
+
+                    <form onsubmit="handleBannerSave(event)" class="space-y-3 text-xs">
+                        <!-- Banner Display Toggle -->
+                        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <span class="font-bold text-slate-700">메인 배너 노출 여부</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="banner-active-toggle" class="sr-only peer" checked>
+                                <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Media Type -->
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1">배너 미디어 종류</label>
+                            <select id="banner-media-type" onchange="toggleBannerMediaInputs()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                <option value="image">이미지 URL</option>
+                                <option value="video">동영상 URL (유튜브 Embed 또는 MP4)</option>
+                            </select>
+                        </div>
+
+                        <!-- Image URL -->
+                        <div id="banner-img-input-group">
+                            <label class="block font-semibold text-slate-600 mb-1">배너 이미지 URL</label>
+                            <input type="url" id="banner-img-url" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://images.unsplash.com/...">
+                        </div>
+
+                        <!-- Video URL -->
+                        <div id="banner-video-input-group" class="hidden">
+                            <label class="block font-semibold text-slate-600 mb-1">동영상 Embed / MP4 URL</label>
+                            <input type="url" id="banner-video-url" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://www.youtube.com/embed/...">
+                        </div>
+
+                        <!-- Banner Headline -->
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1">배너 메인 제목</label>
+                            <input type="text" id="banner-input-title" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="제목 문구 입력">
+                        </div>
+
+                        <!-- Banner Subtitle -->
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1">배너 부제목 / 설명</label>
+                            <textarea id="banner-input-subtitle" rows="2" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="설명 문구 입력"></textarea>
+                        </div>
+
+                        <!-- Target Button Link & Label -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">버튼 텍스트</label>
+                                <input type="text" id="banner-input-btn-text" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="예: 자세히 보기">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-slate-600 mb-1">버튼 연결 URL</label>
+                                <input type="url" id="banner-input-link" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://...">
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-100 flex justify-end">
+                            <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-sm">
+                                배너 설정 저장하기
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="closeAdminModal()" class="px-4 py-2 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-300">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Camera Barcode Scanner Modal -->
+    <div id="scanner-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-800">스마트폰 바코드 스캐너</h3>
+                <button onclick="closeScannerModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div id="reader" class="w-full bg-slate-100 rounded-xl overflow-hidden min-h-[250px]"></div>
+
+            <p class="text-xs text-center text-slate-500">카메라에 상품 바코드를 대면 자동으로 인식됩니다.</p>
+        </div>
+    </div>
+
+    <!-- 5. Excel Data Import & Export Modal -->
+    <div id="data-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-800">엑셀(.xlsx) 데이터 연동 관리</h3>
+                <button onclick="closeDataModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Import Excel File -->
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-slate-700">엑셀 파일 불러오기</label>
+                <div class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-4 text-center cursor-pointer bg-slate-50 transition-colors"
+                     onclick="document.getElementById('file-input').click()">
+                    <i class="fa-solid fa-file-excel text-emerald-600 text-3xl mb-1"></i>
+                    <div class="text-xs font-semibold text-slate-700">클릭하여 '사전 재고List_매입가.xlsx' 선택</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">상품 데이터 & '기준정보' Sheet 자동 파싱 지원</div>
+                    <input type="file" id="file-input" accept=".xlsx, .xls, .json" onchange="handleFileUpload(event)" class="hidden">
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+                <label class="block text-xs font-bold text-slate-700">데이터 백업 / 내보내기</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportToExcel()" class="py-2.5 px-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg hover:bg-emerald-100 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>엑셀로 다운로드</span>
+                    </button>
+                    <button onclick="exportToJson()" class="py-2.5 px-3 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-download"></i>
+                        <span>JSON 백업 파일</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <button onclick="loadSampleData()" class="w-full py-2 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg hover:bg-amber-100">
+                    💡 샘플 재고 및 기준정보 데이터 로드하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Custom Confirm Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div class="text-center space-y-1">
+                <h4 id="confirm-title" class="text-sm font-bold text-slate-800">삭제 확인</h4>
+                <p id="confirm-message" class="text-xs text-slate-500">정말 진행하시겠습니까?</p>
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeConfirmModal(false)" class="flex-1 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">
+                    취소
+                </button>
+                <button onclick="closeConfirmModal(true)" class="flex-1 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 shadow-sm">
+                    확인 및 삭제
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Storage Keys
+        const STORAGE_KEY = 'pramo_workshop_inventory_v3';
+        const MASTER_KEY = 'pramo_workshop_master_v3';
+        const BANNER_KEY = 'pramo_workshop_banner_v3';
+
+        // Initial Master Data (Matching Excel Sheet 기준정보 with Brand term)
+        const defaultMasterData = {
+            categories: ['전체', '프라모델', '공구/케미컬', '도료/에어브러시', '식품', '생활용품', '기타'],
+            locations: ['미지정', 'A-1-1', 'A-1-2', 'B-2-1', 'C-3-1', '창고A', '창고B'],
+            suppliers: ['미지정', '반다이', '타미야', '아카데미', '농심', '삼다수', '유한킴벌리'], // Brand list
+            specs: ['미지정', '1/144 스케일', '120g*5', '2000ml', '30롤', '수성도료', '유성도료']
+        };
+
+        // Default Banner Config
+        const defaultBannerConfig = {
+            active: true,
+            mediaType: 'image', // 'image' or 'video'
+            imgUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80',
+            videoUrl: '',
+            title: '프라모 공작소 & 모형재고 통합 관리',
+            subtitle: '스마트폰 바코드 스캔과 엑셀 기준정보 연동으로 정밀하고 스마트하게 매장을 운영하세요.',
+            btnText: '기준정보 관리 바로가기',
+            linkUrl: '#'
+        };
+
+        // Initial Product Samples with image links
+        const sampleProducts = [
+            { id: '1', barcode: '8801043014830', name: '농심 신라면 5입', category: '식품', spec: '120g*5', stock: 24, costPrice: 3800, sellPrice: 4500, location: 'A-1-1', supplier: '농심', memo: '인기 라면 품목, 1열 진열', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() },
+            { id: '2', barcode: '8801062631025', name: '삼다수 생수 2L', category: '식품', spec: '2000ml', stock: 3, costPrice: 850, sellPrice: 1200, location: 'A-1-2', supplier: '삼다수', memo: '재고 부족 주의', image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 1000 },
+            { id: '3', barcode: '8801007028415', name: '크리넥스 3겹 휴지 30롤', category: '생활용품', spec: '30롤', stock: 12, costPrice: 15900, sellPrice: 19800, location: 'B-2-1', supplier: '유한킴벌리', memo: '화장지 코너', image: 'https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 2000 },
+            { id: '4', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 3000 }
+        ];
+
+        // State variables
+        let products = [];
+        let masterData = { ...defaultMasterData };
+        let bannerConfig = { ...defaultBannerConfig };
+        let currentCategory = '전체';
+        let viewMode = 'table'; // 'table' or 'grid'
+        let scanner = null;
+        let activeDetailProductId = null;
+        let confirmResolver = null;
+        let isLoggedIn = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLocalData();
+            renderBanner();
+            renderCategories();
+            renderProducts();
+            updateStats();
+            updateAuthUI(false); // Initialize with logged-out state by default
+        });
+
+        // Toggle UI depending on authentication state
+        function updateAuthUI(loggedIn) {
+            isLoggedIn = loggedIn;
+            const authActions = document.getElementById('auth-actions');
+            const mainContent = document.getElementById('main-body-content');
+            const btnLogin = document.getElementById('btn-login');
+            const userInfo = document.getElementById('user-info');
+            const bannerEditBtn = document.getElementById('banner-edit-btn');
+
+            if (loggedIn) {
+                if (authActions) authActions.classList.remove('hidden');
+                if (mainContent) mainContent.classList.remove('hidden');
+                if (bannerEditBtn) bannerEditBtn.classList.remove('hidden');
+                if (btnLogin) btnLogin.classList.add('hidden');
+                if (userInfo) userInfo.classList.remove('hidden');
+            } else {
+                if (authActions) authActions.classList.add('hidden');
+                if (mainContent) mainContent.classList.add('hidden');
+                if (bannerEditBtn) bannerEditBtn.classList.add('hidden');
+                if (btnLogin) btnLogin.classList.remove('hidden');
+                if (userInfo) userInfo.classList.add('hidden');
+            }
+        }
+
+        function saveProducts() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+            updateStats();
+        }
+
+        function saveMaster() {
+            localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+        }
+
+        function saveBanner() {
+            localStorage.setItem(BANNER_KEY, JSON.stringify(bannerConfig));
+        }
+
+        function updateStats() {
+            const totalItems = products.length;
+            const totalQty = products.reduce((acc, cur) => acc + Number(cur.stock || 0), 0);
+            const totalCost = products.reduce((acc, cur) => acc + (Number(cur.costPrice || 0) * Number(cur.stock || 0)), 0);
+            const lowStockCount = products.filter(p => Number(p.stock) <= 5).length;
+
+            document.getElementById('stat-total-items').textContent = `${totalItems}종`;
+            document.getElementById('stat-total-qty').textContent = `${totalQty.toLocaleString()}개`;
+            document.getElementById('stat-total-cost').textContent = `₩${totalCost.toLocaleString()}`;
+            document.getElementById('stat-low-stock').textContent = `${lowStockCount}개`;
+        }
+
+        // Render Hero Banner
+        function renderBanner() {
+            const bannerSection = document.getElementById('hero-banner-section');
+            const bannerImg = document.getElementById('banner-img');
+            const bannerVideo = document.getElementById('banner-video');
+            const bannerTitle = document.getElementById('banner-title');
+            const bannerSub = document.getElementById('banner-subtitle');
+            const bannerBtnText = document.getElementById('banner-btn-text');
+            const bannerLinkBtn = document.getElementById('banner-link-btn');
+
+            if (!bannerConfig.active) {
+                bannerSection.classList.add('hidden');
+                return;
+            } else {
+                bannerSection.classList.remove('hidden');
+            }
+
+            bannerTitle.textContent = bannerConfig.title || '프라모 공작소 재고 관리';
+            bannerSub.textContent = bannerConfig.subtitle || '';
+            bannerBtnText.textContent = bannerConfig.btnText || '자세히 보기';
+            bannerLinkBtn.href = bannerConfig.linkUrl || '#';
+            if (bannerConfig.linkUrl === '#' || !bannerConfig.linkUrl) {
+                bannerLinkBtn.onclick = (e) => { e.preventDefault(); openAdminModal('master'); };
+            } else {
+                bannerLinkBtn.onclick = null;
+            }
+
+            if (bannerConfig.mediaType === 'video' && bannerConfig.videoUrl) {
+                bannerImg.classList.add('hidden');
+                bannerVideo.classList.remove('hidden');
+                bannerVideo.src = bannerConfig.videoUrl;
+            } else {
+                bannerVideo.classList.add('hidden');
+                bannerImg.classList.remove('hidden');
+                bannerImg.src = bannerConfig.imgUrl || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80';
+            }
+        }
+
+        // Render Categories Navigation
+        function renderCategories() {
+            const catContainer = document.getElementById('category-list');
+            catContainer.innerHTML = '';
+
+            const categoryList = masterData.categories && masterData.categories.length > 0 ? masterData.categories : ['전체', '기타'];
+
+            categoryList.forEach(cat => {
+                const isSelected = cat === currentCategory;
+                const count = cat === '전체' ? products.length : products.filter(p => (p.category || '미지정') === cat).length;
+                
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex justify-between items-center transition-colors ${
+                    isSelected ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'text-slate-600 hover:bg-slate-100'
+                }`;
+                btn.onclick = () => {
+                    currentCategory = cat;
+                    renderCategories();
+                    renderProducts();
+                };
+                btn.innerHTML = `
+                    <span>${cat}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-[10px] ${isSelected ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'}">${count}</span>
+                `;
+                catContainer.appendChild(btn);
+            });
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            const btnTable = document.getElementById('btn-view-table');
+            const btnGrid = document.getElementById('btn-view-grid');
+
+            if (mode === 'table') {
+                btnTable.className = "px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 bg-white text-blue-600 shadow-sm";
+                btnGrid.className = "px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 text-slate-600 hover:text-slate-900";
+                document.getElementById('table-view-container').classList.remove('hidden');
+                document.getElementById('grid-view-container').classList.add('hidden');
+            } else {
+                btnGrid.className = "px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 bg-white text-blue-600 shadow-sm";
+                btnTable.className = "px-2.5 py-1 text-xs rounded-md transition-all font-semibold flex items-center space-x-1 text-slate-600 hover:text-slate-900";
+                document.getElementById('grid-view-container').classList.remove('hidden');
+                document.getElementById('table-view-container').classList.add('hidden');
+            }
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const tbody = document.getElementById('product-table-body');
+            const gridContainer = document.getElementById('grid-view-container');
+            const emptyState = document.getElementById('empty-state');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase().trim();
+            const sortVal = document.getElementById('sort-select').value;
+
+            // Filter products
+            let filtered = products.filter(p => {
+                const pCategory = p.category || '미지정';
+                const matchCategory = currentCategory === '전체' || pCategory === currentCategory;
+                const matchSearch = !searchKeyword || 
+                    (p.name && p.name.toLowerCase().includes(searchKeyword)) || 
+                    (p.barcode && p.barcode.includes(searchKeyword)) || 
+                    (p.category && p.category.toLowerCase().includes(searchKeyword)) ||
+                    (p.location && p.location.toLowerCase().includes(searchKeyword)) ||
+                    (p.supplier && p.supplier.toLowerCase().includes(searchKeyword));
+                return matchCategory && matchSearch;
+            });
+
+            // Sort products
+            filtered.sort((a, b) => {
+                if (sortVal === 'name-asc') return (a.name || '').localeCompare(b.name || '');
+                if (sortVal === 'stock-asc') return Number(a.stock || 0) - Number(b.stock || 0);
+                if (sortVal === 'stock-desc') return Number(b.stock || 0) - Number(a.stock || 0);
+                if (sortVal === 'cost-desc') return Number(b.costPrice || 0) - Number(a.costPrice || 0);
+                if (sortVal === 'sell-desc') return Number(b.sellPrice || 0) - Number(a.sellPrice || 0);
+                if (sortVal === 'recent') return (b.updatedAt || 0) - (a.updatedAt || 0);
+                return 0;
+            });
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('table-view-container').classList.add('hidden');
+                document.getElementById('grid-view-container').classList.add('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+                if (viewMode === 'table') {
+                    document.getElementById('table-view-container').classList.remove('hidden');
+                    document.getElementById('grid-view-container').classList.add('hidden');
+                } else {
+                    document.getElementById('grid-view-container').classList.remove('hidden');
+                    document.getElementById('table-view-container').classList.add('hidden');
+                }
+            }
+
+            // Render Table Rows (Includes Image Thumbnail)
+            tbody.innerHTML = '';
+            filtered.forEach((p, idx) => {
+                const isLowStock = Number(p.stock) <= 5;
+                const defaultImg = `https://placehold.co/100x100/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
+                const imgSrc = p.image || defaultImg;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50/50 transition-colors cursor-pointer border-b border-slate-100";
+                tr.onclick = () => openDetailModal(p.id);
+
+                tr.innerHTML = `
+                    <td class="p-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-2 text-center">
+                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-10 h-10 object-cover rounded-lg border border-slate-200 mx-auto shadow-sm bg-slate-100">
+                    </td>
+                    <td class="p-3 font-mono font-bold text-slate-700">${p.barcode || '-'}</td>
+                    <td class="p-3 text-slate-600 font-medium">${p.supplier || '-'}</td>
+                    <td class="p-3 font-bold text-slate-900 max-w-[200px] truncate">${p.name || '-'}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">${p.category || '미지정'}</span></td>
+                    <td class="p-3 text-slate-500">${p.spec || '-'}</td>
+                    <td class="p-3 text-center">
+                        <span class="px-2 py-0.5 rounded font-black text-xs ${isLowStock ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}">
+                            ${p.stock || 0}개
+                        </span>
+                    </td>
+                    <td class="p-3 text-right font-mono text-slate-700">₩${Number(p.costPrice || 0).toLocaleString()}</td>
+                    <td class="p-3 text-right font-mono font-bold text-blue-600">₩${Number(p.sellPrice || 0).toLocaleString()}</td>
+                    <td class="p-3 text-slate-600"><i class="fa-solid fa-location-dot text-slate-300 mr-1"></i>${p.location || '-'}</td>
+                    <td class="p-3 text-slate-400 max-w-[120px] truncate">${p.memo || '-'}</td>
+                    <td class="p-3 text-center" onclick="event.stopPropagation()">
+                        <div class="flex items-center justify-center space-x-1">
+                            <button onclick="quickAdjustStock('${p.id}', -1)" class="w-6 h-6 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold text-xs">-</button>
+                            <button onclick="quickAdjustStock('${p.id}', 1)" class="w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs">+</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Render Card View
+            gridContainer.innerHTML = '';
+            filtered.forEach(p => {
+                const isLowStock = Number(p.stock) <= 5;
+                const defaultImg = `https://placehold.co/300x200/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
+                const imgSrc = p.image || defaultImg;
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-blue-400 hover:shadow-lg transition-all flex flex-col group cursor-pointer";
+                card.onclick = () => openDetailModal(p.id);
+
+                card.innerHTML = `
+                    <div class="relative h-36 bg-slate-100 overflow-hidden">
+                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <span class="absolute top-2 left-2 bg-slate-900/70 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-md font-mono">
+                            ${p.barcode}
+                        </span>
+                        ${isLowStock ? `
+                            <span class="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-sm">
+                                재고부족
+                            </span>
+                        ` : ''}
+                    </div>
+                    <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between text-[11px] mb-1">
+                                <span class="font-semibold text-blue-600">${p.category || '미지정'}</span>
+                                <span class="text-slate-400"><i class="fa-solid fa-copyright mr-1"></i>${p.supplier || '미지정'}</span>
+                            </div>
+                            <h4 class="text-sm font-bold text-slate-900 leading-snug line-clamp-2">${p.name}</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">${p.spec ? '규격: ' + p.spec : ''}</p>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <div>
+                                <div class="text-[10px] text-slate-400">매입 / 판매가</div>
+                                <div class="text-xs font-bold text-slate-800">
+                                    ₩${Number(p.costPrice||0).toLocaleString()} <span class="text-slate-300">/</span> <span class="text-blue-600">₩${Number(p.sellPrice||0).toLocaleString()}</span>
+                                </div>
+                            </div>
+                            <div class="text-right" onclick="event.stopPropagation()">
+                                <div class="text-[10px] text-slate-400 mb-0.5">재고 수량</div>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="quickAdjustStock('${p.id}', -1)" class="w-6 h-6 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-bold">-</button>
+                                    <span class="text-sm font-black text-slate-800 min-w-[1.5rem] text-center">${p.stock}</span>
+                                    <button onclick="quickAdjustStock('${p.id}', 1)" class="w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                gridContainer.appendChild(card);
+            });
+        }
+
+        function quickAdjustStock(id, delta) {
+            const idx = products.findIndex(p => p.id === id);
+            if (idx !== -1) {
+                products[idx].stock = Math.max(0, Number(products[idx].stock) + delta);
+                products[idx].updatedAt = Date.now();
+                saveProducts();
+                renderProducts();
+            }
+        }
+
+        function openDetailModal(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            activeDetailProductId = id;
+            document.getElementById('detail-name').textContent = product.name || '상품명 없음';
+            document.getElementById('detail-barcode').textContent = product.barcode || '-';
+            document.getElementById('detail-category-badge').textContent = product.category || '미지정';
+            document.getElementById('detail-spec-badge').textContent = product.spec || '규격 없음';
+            document.getElementById('detail-cost-price').textContent = `₩${Number(product.costPrice||0).toLocaleString()}`;
+            document.getElementById('detail-sell-price').textContent = `₩${Number(product.sellPrice||0).toLocaleString()}`;
+            document.getElementById('detail-stock-qty').textContent = product.stock || 0;
+            document.getElementById('detail-location').textContent = product.location || '미지정';
+            document.getElementById('detail-supplier').textContent = product.supplier || '미지정'; // Brand name
+            document.getElementById('detail-memo').textContent = product.memo || '등록된 메모가 없습니다.';
+
+            // Margin rate calculation
+            const cost = Number(product.costPrice || 0);
+            const sell = Number(product.sellPrice || 0);
+            if (sell > 0 && cost > 0) {
+                const margin = Math.round(((sell - cost) / sell) * 100);
+                document.getElementById('detail-margin-rate').textContent = `마진율: 약 ${margin}% (이익 ₩${(sell - cost).toLocaleString()})`;
+            } else {
+                document.getElementById('detail-margin-rate').textContent = `마진율: 정보 미흡`;
+            }
+
+            const defaultImg = `https://placehold.co/300x300/f1f5f9/94a3b8?text=${encodeURIComponent((product.name || 'P').charAt(0))}`;
+            document.getElementById('detail-image').src = product.image || defaultImg;
+
+            const stockText = document.getElementById('detail-stock-status-text');
+            if (Number(product.stock) <= 5) {
+                stockText.textContent = '⚠️ 재고 부족 경고 (5개 이하)';
+                stockText.className = 'text-xs text-amber-600 font-semibold mt-0.5';
+            } else {
+                stockText.textContent = '✅ 적정 재고 보유 중';
+                stockText.className = 'text-xs text-blue-600 font-semibold mt-0.5';
+            }
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            activeDetailProductId = null;
+        }
+
+        function adjustDetailStock(delta) {
+            if (!activeDetailProductId) return;
+            quickAdjustStock(activeDetailProductId, delta);
+            const p = products.find(item => item.id === activeDetailProductId);
+            if (p) {
+                document.getElementById('detail-stock-qty').textContent = p.stock;
+            }
+        }
+
+        async function deleteProductFromDetail() {
+            if (!activeDetailProductId) return;
+            const confirmed = await openConfirmModal('상품 삭제', '이 상품을 정말 삭제하시겠습니까?');
+            if (confirmed) {
+                products = products.filter(p => p.id !== activeDetailProductId);
+                saveProducts();
+                closeDetailModal();
+                renderProducts();
+                showToast('상품이 삭제되었습니다.', 'info');
+            }
+        }
+
+        function editProductFromDetail() {
+            const id = activeDetailProductId;
+            closeDetailModal();
+            openProductModal(id);
+        }
+
+        function openProductModal(editId = null) {
+            populateMasterDropdowns();
+
+            if (editId) {
+                const p = products.find(item => item.id === editId);
+                if (p) {
+                    document.getElementById('product-modal-title').textContent = '상품 정보 수정';
+                    document.getElementById('edit-product-id').value = p.id;
+                    document.getElementById('input-barcode').value = p.barcode || '';
+                    document.getElementById('input-name').value = p.name || '';
+                    document.getElementById('input-stock').value = p.stock || 1;
+                    document.getElementById('input-cost').value = p.costPrice || '';
+                    document.getElementById('input-sell').value = p.sellPrice || '';
+                    document.getElementById('input-image').value = p.image || '';
+                    document.getElementById('input-memo').value = p.memo || '';
+
+                    setDropdownValue('category', p.category);
+                    setDropdownValue('spec', p.spec);
+                    setDropdownValue('location', p.location);
+                    setDropdownValue('supplier', p.supplier);
+                }
+            } else {
+                document.getElementById('product-modal-title').textContent = '새 상품 직접 등록';
+                document.getElementById('product-form').reset();
+                document.getElementById('edit-product-id').value = '';
+                document.getElementById('input-stock').value = '1';
+
+                setDropdownValue('category', '');
+                setDropdownValue('spec', '');
+                setDropdownValue('location', '');
+                setDropdownValue('supplier', '');
+            }
+
+            document.getElementById('product-modal').classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        // Helper to populate dropdowns from Master Data
+        function populateMasterDropdowns() {
+            const fields = [
+                { key: 'category', list: masterData.categories.filter(c => c !== '전체') },
+                { key: 'spec', list: masterData.specs },
+                { key: 'location', list: masterData.locations },
+                { key: 'supplier', list: masterData.suppliers }
+            ];
+
+            fields.forEach(field => {
+                const select = document.getElementById(`input-${field.key}-select`);
+                if (!select) return;
+
+                select.innerHTML = `<option value="">[선택 안함 / 빈칸 (미지정)]</option>`;
+                field.list.forEach(item => {
+                    if (item && item !== '미지정') {
+                        select.innerHTML += `<option value="${item}">${item}</option>`;
+                    }
+                });
+                select.innerHTML += `<option value="__custom__">✏️ 직접 입력 (기타)</option>`;
+            });
+        }
+
+        function toggleCustomInput(fieldKey) {
+            const select = document.getElementById(`input-${fieldKey}-select`);
+            const customInput = document.getElementById(`input-${fieldKey}-custom`);
+
+            if (select.value === '__custom__') {
+                customInput.classList.remove('hidden');
+                customInput.focus();
+            } else {
+                customInput.classList.add('hidden');
+                customInput.value = '';
+            }
+        }
+
+        function setDropdownValue(fieldKey, value) {
+            const select = document.getElementById(`input-${fieldKey}-select`);
+            const customInput = document.getElementById(`input-${fieldKey}-custom`);
+
+            if (!value) {
+                select.value = '';
+                customInput.classList.add('hidden');
+                customInput.value = '';
+                return;
+            }
+
+            const optionExists = Array.from(select.options).some(opt => opt.value === value);
+            if (optionExists) {
+                select.value = value;
+                customInput.classList.add('hidden');
+                customInput.value = '';
+            } else {
+                select.value = '__custom__';
+                customInput.classList.remove('hidden');
+                customInput.value = value;
+            }
+        }
+
+        function getDropdownValue(fieldKey) {
+            const select = document.getElementById(`input-${fieldKey}-select`);
+            const customInput = document.getElementById(`input-${fieldKey}-custom`);
+
+            if (select.value === '__custom__') {
+                return customInput.value.trim();
+            }
+            return select.value;
+        }
+
+        function handleProductSubmit(e) {
+            e.preventDefault();
+
+            const editId = document.getElementById('edit-product-id').value;
+            const barcode = document.getElementById('input-barcode').value.trim();
+            const name = document.getElementById('input-name').value.trim();
+            const category = getDropdownValue('category');
+            const spec = getDropdownValue('spec');
+            const stock = Number(document.getElementById('input-stock').value || 0);
+            const location = getDropdownValue('location');
+            const supplier = getDropdownValue('supplier'); // Brand
+            const costPrice = Number(document.getElementById('input-cost').value || 0);
+            const sellPrice = Number(document.getElementById('input-sell').value || 0);
+            const image = document.getElementById('input-image').value.trim();
+            const memo = document.getElementById('input-memo').value.trim();
+
+            if (!barcode || !name) {
+                showToast('바코드와 상품명은 필수 입력 항목입니다.', 'warning');
+                return;
+            }
+
+            if (editId) {
+                const idx = products.findIndex(p => p.id === editId);
+                if (idx !== -1) {
+                    products[idx] = { ...products[idx], barcode, name, category, spec, stock, costPrice, sellPrice, location, supplier, image, memo, updatedAt: Date.now() };
+                    showToast('상품 정보가 성공적으로 수정되었습니다.', 'success');
+                }
+            } else {
+                const newProduct = {
+                    id: Date.now().toString(),
+                    barcode,
+                    name,
+                    category,
+                    spec,
+                    stock,
+                    costPrice,
+                    sellPrice,
+                    location,
+                    supplier,
+                    image,
+                    memo,
+                    updatedAt: Date.now()
+                };
+                products.unshift(newProduct);
+                showToast('새 상품이 등록되었습니다.', 'success');
+            }
+
+            saveProducts();
+            renderCategories();
+            renderProducts();
+            closeProductModal();
+        }
+
+        function openAdminModal(tab = 'master') {
+            switchAdminTab(tab);
+            renderMasterPills();
+
+            // Fill banner form fields
+            document.getElementById('banner-active-toggle').checked = bannerConfig.active;
+            document.getElementById('banner-media-type').value = bannerConfig.mediaType || 'image';
+            document.getElementById('banner-img-url').value = bannerConfig.imgUrl || '';
+            document.getElementById('banner-video-url').value = bannerConfig.videoUrl || '';
+            document.getElementById('banner-input-title').value = bannerConfig.title || '';
+            document.getElementById('banner-input-subtitle').value = bannerConfig.subtitle || '';
+            document.getElementById('banner-input-btn-text').value = bannerConfig.btnText || '';
+            document.getElementById('banner-input-link').value = bannerConfig.linkUrl || '';
+
+            toggleBannerMediaInputs();
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('admin-modal').classList.add('hidden');
+        }
+
+        function switchAdminTab(tab) {
+            const masterTab = document.getElementById('admin-tab-master');
+            const bannerTab = document.getElementById('admin-tab-banner');
+            const masterPanel = document.getElementById('admin-panel-master');
+            const bannerPanel = document.getElementById('admin-panel-banner');
+
+            if (tab === 'master') {
+                masterTab.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm";
+                bannerTab.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300";
+                masterPanel.classList.remove('hidden');
+                bannerPanel.classList.add('hidden');
+            } else {
+                bannerTab.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm";
+                masterTab.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300";
+                bannerPanel.classList.remove('hidden');
+                masterPanel.classList.add('hidden');
+            }
+        }
+
+        function renderMasterPills() {
+            const renderPillGroup = (key, containerId) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                const items = masterData[key] || [];
+
+                items.forEach((item, index) => {
+                    if (!item || item === '전체' || item === '미지정') return;
+                    const chip = document.createElement('span');
+                    chip.className = "inline-flex items-center space-x-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 shadow-sm";
+                    chip.innerHTML = `
+                        <span>${item}</span>
+                        <button onclick="removeMasterItem('${key}', ${index})" class="text-slate-400 hover:text-red-500 ml-1">
+                            <i class="fa-solid fa-xmark text-[11px]"></i>
+                        </button>
+                    `;
+                    container.appendChild(chip);
+                });
+            };
+
+            renderPillGroup('categories', 'master-categories-pills');
+            renderPillGroup('locations', 'master-locations-pills');
+            renderPillGroup('suppliers', 'master-suppliers-pills');
+            renderPillGroup('specs', 'master-specs-pills');
+        }
+
+        function addMasterItem(key, inputId) {
+            const input = document.getElementById(inputId);
+            const val = input.value.trim();
+            if (!val) return;
+
+            if (!masterData[key]) masterData[key] = [];
+            if (!masterData[key].includes(val)) {
+                masterData[key].push(val);
+                saveMaster();
+                renderMasterPills();
+                renderCategories();
+                showToast(`'${val}' 기준정보가 추가되었습니다.`, 'success');
+            }
+            input.value = '';
+        }
+
+        function removeMasterItem(key, index) {
+            if (masterData[key] && masterData[key][index]) {
+                const removed = masterData[key].splice(index, 1);
+                saveMaster();
+                renderMasterPills();
+                renderCategories();
+                showToast(`'${removed[0]}' 기준정보가 삭제되었습니다.`, 'info');
+            }
+        }
+
+        function toggleBannerMediaInputs() {
+            const type = document.getElementById('banner-media-type').value;
+            if (type === 'video') {
+                document.getElementById('banner-video-input-group').classList.remove('hidden');
+                document.getElementById('banner-img-input-group').classList.add('hidden');
+            } else {
+                document.getElementById('banner-img-input-group').classList.remove('hidden');
+                document.getElementById('banner-video-input-group').classList.add('hidden');
+            }
+        }
+
+        function handleBannerSave(e) {
+            e.preventDefault();
+
+            bannerConfig.active = document.getElementById('banner-active-toggle').checked;
+            bannerConfig.mediaType = document.getElementById('banner-media-type').value;
+            bannerConfig.imgUrl = document.getElementById('banner-img-url').value.trim();
+            bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
+            bannerConfig.title = document.getElementById('banner-input-title').value.trim();
+            bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
+            bannerConfig.btnText = document.getElementById('banner-input-btn-text').value.trim();
+            bannerConfig.linkUrl = document.getElementById('banner-input-link').value.trim();
+
+            saveBanner();
+            renderBanner();
+            closeAdminModal();
+            showToast('가로 배너 설정이 반영되었습니다.', 'success');
+        }
+
+        async function autoLookupBarcode() {
+            const barcode = document.getElementById('input-barcode').value.trim();
+            if (!barcode) {
+                showToast('바코드 번호를 먼저 입력하세요.', 'warning');
+                return;
+            }
+
+            showToast('공개 바코드 DB 조회 중...', 'info');
+
+            try {
+                const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+                const data = await res.json();
+
+                if (data.status === 1 && data.product) {
+                    const p = data.product;
+                    if (p.product_name) document.getElementById('input-name').value = p.product_name;
+                    if (p.image_front_url) document.getElementById('input-image').value = p.image_front_url;
+                    showToast('바코드 정보 및 이미지를 찾아 등록했습니다!', 'success');
+                    return;
+                }
+            } catch (err) {
+                console.log('Open API lookup fallback', err);
+            }
+
+            // Fallback template
+            document.getElementById('input-name').value = `[바코드 ${barcode}] 신규상품`;
+            document.getElementById('input-image').value = `https://placehold.co/300x300/e2e8f0/475569?text=${barcode}`;
+            showToast('기본 바코드 템플릿 정보가 입력되었습니다.', 'info');
+        }
+
+        function quickBarcodeSearch() {
+            const val = document.getElementById('search-input').value.trim();
+            if (!val) {
+                showToast('검색할 바코드 또는 상품명을 입력하세요.', 'warning');
+                return;
+            }
+            const found = products.find(p => p.barcode === val);
+            if (found) {
+                openDetailModal(found.id);
+            } else {
+                showToast(`'${val}' 바코드 상품이 존재하지 않습니다.`, 'warning');
+            }
+        }
+
+        function openScannerModal() {
+            document.getElementById('scanner-modal').classList.remove('hidden');
+            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 } });
+            
+            scanner.render((decodedText) => {
+                showToast(`바코드 스캔 성공: ${decodedText}`, 'success');
+                scanner.clear();
+                closeScannerModal();
+
+                document.getElementById('search-input').value = decodedText;
+                quickBarcodeSearch();
+            }, (error) => {});
+        }
+
+        function closeScannerModal() {
+            if (scanner) {
+                scanner.clear().catch(e => console.log(e));
+            }
+            document.getElementById('scanner-modal').classList.add('hidden');
+        }
+
+        function openDataModal() {
+            document.getElementById('data-modal').classList.remove('hidden');
+        }
+
+        function closeDataModal() {
+            document.getElementById('data-modal').classList.add('hidden');
+        }
+
+        // Excel / JSON File Handler with Brand column mapping
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            if (file.name.endsWith('.json')) {
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (Array.isArray(data)) {
+                            products = data;
+                            saveProducts();
+                            renderCategories();
+                            renderProducts();
+                            closeDataModal();
+                            showToast('JSON 데이터 백업이 성공적으로 복원되었습니다!', 'success');
+                        }
+                    } catch (err) {
+                        showToast('올바르지 않은 JSON 파일입니다.', 'warning');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                // Excel File Reading
+                reader.onload = (event) => {
+                    try {
+                        const data = new Uint8Array(event.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+
+                        // Sheet 1: Products
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                        if (jsonData && jsonData.length > 0) {
+                            const imported = jsonData.map((row, idx) => ({
+                                id: Date.now().toString() + idx,
+                                barcode: String(row['바코드'] || row['barcode'] || row['상품코드'] || Date.now() + idx),
+                                name: String(row['상품명'] || row['품명'] || row['name'] || '엑셀 상품 ' + (idx + 1)),
+                                category: String(row['카테고리'] || row['분류'] || ''),
+                                spec: String(row['규격'] || row['옵션'] || row['규격/옵션'] || ''),
+                                stock: Number(row['현재재고'] || row['재고'] || row['수량'] || 1),
+                                costPrice: Number(row['매입가'] || row['매입단가'] || 0),
+                                sellPrice: Number(row['판매가'] || row['소비자가'] || 0),
+                                location: String(row['진열위치'] || row['창고위치'] || row['위치'] || ''),
+                                supplier: String(row['브랜드'] || row['공급처'] || row['거래처'] || ''),
+                                image: String(row['대표이미지'] || row['이미지'] || row['상품이미지'] || ''),
+                                memo: String(row['비고'] || row['메모'] || ''),
+                                updatedAt: Date.now()
+                            }));
+
+                            products = [...imported, ...products];
+                            saveProducts();
+                        }
+
+                        // Check Sheet '기준정보' if present
+                        if (workbook.SheetNames.includes('기준정보')) {
+                            const masterSheet = workbook.Sheets['기준정보'];
+                            const masterJson = XLSX.utils.sheet_to_json(masterSheet);
+                            masterJson.forEach(row => {
+                                if (row['카테고리'] && !masterData.categories.includes(row['카테고리'])) masterData.categories.push(row['카테고리']);
+                                if (row['진열위치'] && !masterData.locations.includes(row['진열위치'])) masterData.locations.push(row['진열위치']);
+                                const brandVal = row['브랜드'] || row['공급처'];
+                                if (brandVal && !masterData.suppliers.includes(brandVal)) masterData.suppliers.push(brandVal);
+                                if (row['규격'] && !masterData.specs.includes(row['규격'])) masterData.specs.push(row['규격']);
+                            });
+                            saveMaster();
+                        }
+
+                        renderCategories();
+                        renderProducts();
+                        closeDataModal();
+                        showToast(`엑셀 데이터를 성공적으로 불러왔습니다!`, 'success');
+                    } catch (err) {
+                        console.error(err);
+                        showToast('엑셀 파일 파싱 중 오류가 발생했습니다.', 'warning');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function exportToExcel() {
+            const exportData = products.map((p, index) => ({
+                'No': index + 1,
+                '대표이미지': p.image || '',
+                '바코드': p.barcode,
+                '상품명': p.name,
+                '카테고리': p.category || '',
+                '규격/옵션': p.spec || '',
+                '현재재고': p.stock,
+                '매입가': p.costPrice,
+                '판매가': p.sellPrice,
+                '진열위치': p.location || '',
+                '브랜드': p.supplier || '',
+                '비고': p.memo || ''
+            }));
+
+            const masterExportData = [];
+            const maxLen = Math.max(masterData.categories.length, masterData.locations.length, masterData.suppliers.length, masterData.specs.length);
+            for (let i = 0; i < maxLen; i++) {
+                masterExportData.push({
+                    '카테고리': masterData.categories[i] || '',
+                    '진열위치': masterData.locations[i] || '',
+                    '브랜드': masterData.suppliers[i] || '',
+                    '규격': masterData.specs[i] || ''
+                });
+            }
+
+            const workbook = XLSX.utils.book_new();
+            const wsProducts = XLSX.utils.json_to_sheet(exportData);
+            const wsMaster = XLSX.utils.json_to_sheet(masterExportData);
+
+            XLSX.utils.book_append_sheet(workbook, wsProducts, "사전재고List");
+            XLSX.utils.book_append_sheet(workbook, wsMaster, "기준정보");
+
+            XLSX.writeFile(workbook, `프라모공작소_재고_기준정보_${new Date().toISOString().slice(0,10)}.xlsx`);
+            showToast('엑셀 파일 다운로드가 시작되었습니다.', 'success');
+        }
+
+        function exportToJson() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ products, masterData, bannerConfig }, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `pramo_inventory_backup_${Date.now()}.json`);
+            dlAnchorElem.click();
+        }
+
+        function loadSampleData() {
+            products = [...sampleProducts];
+            masterData = { ...defaultMasterData };
+            bannerConfig = { ...defaultBannerConfig };
+            saveProducts();
+            saveMaster();
+            saveBanner();
+            renderBanner();
+            renderCategories();
+            renderProducts();
+            closeDataModal();
+            showToast('샘플 재고 및 기준정보 데이터가 로드되었습니다.', 'info');
+        }
+
+        function handleSearch() {
+            renderProducts();
+        }
+
+        function openConfirmModal(title, msg) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = msg;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+
+            return new Promise((resolve) => {
+                confirmResolver = resolve;
+            });
+        }
+
+        function closeConfirmModal(result) {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            if (confirmResolver) {
+                confirmResolver(result);
+                confirmResolver = null;
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                warning: 'bg-amber-500 text-white',
+                info: 'bg-slate-800 text-white'
+            };
+
+            toast.className = `px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold flex items-center space-x-2 transition-all transform translate-y-2 opacity-0 pointer-events-auto ${colors[type] || colors.info}`;
+            toast.innerHTML = `<span>${msg}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function handleGoogleLogin() {
+            showToast('구글 계정으로 로그인되었습니다.', 'success');
+            updateAuthUI(true);
+            document.getElementById('user-display-name').textContent = '관리자 님';
+        }
+
+        function handleLogout() {
+            updateAuthUI(false);
+            showToast('로그아웃 되었습니다.', 'info');
+        }
+    </script>
+</body>
+</html>
