@@ -141,13 +141,6 @@
                     <p id="banner-subtitle" class="text-xs md:text-sm text-slate-200 max-w-xl font-medium line-clamp-2">
                         스마트폰 바코드 스캔으로 입출고를 손쉽게 관리하고, 엑셀 기준정보와 통합하여 효율적인 매장을 운영하세요.
                     </p>
-                    <!-- Banner Action Button Wrapper (Hidden when logged out) -->
-                    <div id="banner-btn-wrapper" class="pt-2 hidden">
-                        <a id="banner-link-btn" href="#" target="_blank" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95">
-                            <span id="banner-btn-text">자세히 보기</span>
-                            <i class="fa-solid fa-arrow-right"></i>
-                        </a>
-                    </div>
                 </div>
 
                 <!-- Banner Quick Admin Edit Link (Hidden when logged out) -->
@@ -685,18 +678,6 @@
                             <textarea id="banner-input-subtitle" rows="2" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="설명 문구 입력"></textarea>
                         </div>
 
-                        <!-- Target Button Link & Label -->
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block font-semibold text-slate-600 mb-1">버튼 텍스트</label>
-                                <input type="text" id="banner-input-btn-text" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="예: 자세히 보기">
-                            </div>
-                            <div>
-                                <label class="block font-semibold text-slate-600 mb-1">버튼 연결 URL</label>
-                                <input type="url" id="banner-input-link" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" placeholder="https://...">
-                            </div>
-                        </div>
-
                         <div class="pt-3 border-t border-slate-100 flex justify-end">
                             <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-sm">
                                 배너 설정 저장하기
@@ -847,7 +828,10 @@
                         const data = docSnap.data();
                         if (data.products) window.products = data.products;
                         if (data.masterData) window.masterData = data.masterData;
-                        if (data.bannerConfig) window.bannerConfig = data.bannerConfig;
+                        if (data.bannerConfig) {
+                            window.bannerConfig = data.bannerConfig;
+                            localStorage.setItem('pramo_workshop_banner_v3', JSON.stringify(data.bannerConfig));
+                        }
 
                         window.renderBanner();
                         window.renderCategories();
@@ -938,9 +922,7 @@
             imgUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80',
             videoUrl: '',
             title: '프라모 공작소 & 모형재고 통합 관리',
-            subtitle: '스마트폰 바코드 스캔과 엑셀 기준정보 연동으로 정밀하고 스마트하게 매장을 운영하세요.',
-            btnText: '기준정보 관리 바로가기',
-            linkUrl: '#'
+            subtitle: '스마트폰 바코드 스캔과 엑셀 기준정보 연동으로 정밀하고 스마트하게 매장을 운영하세요.'
         };
 
         // Initial Product Samples
@@ -988,14 +970,12 @@
             const btnLogin = document.getElementById('btn-login');
             const userInfo = document.getElementById('user-info');
             const bannerEditBtn = document.getElementById('banner-edit-btn');
-            const bannerBtnWrapper = document.getElementById('banner-btn-wrapper');
             const userDisp = document.getElementById('user-display-name');
 
             if (loggedIn) {
                 if (authActions) authActions.classList.remove('hidden');
                 if (mainContent) mainContent.classList.remove('hidden');
                 if (bannerEditBtn) bannerEditBtn.classList.remove('hidden');
-                if (bannerBtnWrapper) bannerBtnWrapper.classList.remove('hidden');
                 if (btnLogin) btnLogin.classList.add('hidden');
                 if (userInfo) userInfo.classList.remove('hidden');
                 if (userDisp) userDisp.textContent = displayName;
@@ -1003,7 +983,6 @@
                 if (authActions) authActions.classList.add('hidden');
                 if (mainContent) mainContent.classList.add('hidden');
                 if (bannerEditBtn) bannerEditBtn.classList.add('hidden');
-                if (bannerBtnWrapper) bannerBtnWrapper.classList.add('hidden');
                 if (btnLogin) btnLogin.classList.remove('hidden');
                 if (userInfo) userInfo.classList.add('hidden');
             }
@@ -1012,11 +991,16 @@
         function clearUserData() {
             window.products = [];
             window.masterData = { ...defaultMasterData };
-            window.bannerConfig = { ...defaultBannerConfig };
+            
+            // Preserve customized banner configuration across logout
+            const storedBanner = localStorage.getItem(BANNER_KEY);
+            if (storedBanner) {
+                window.bannerConfig = JSON.parse(storedBanner);
+            }
+
             selectedProductIds.clear();
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(MASTER_KEY);
-            localStorage.removeItem(BANNER_KEY);
 
             renderBanner();
             renderCategories();
@@ -1059,8 +1043,6 @@
             const bannerVideo = document.getElementById('banner-video');
             const bannerTitle = document.getElementById('banner-title');
             const bannerSub = document.getElementById('banner-subtitle');
-            const bannerBtnText = document.getElementById('banner-btn-text');
-            const bannerLinkBtn = document.getElementById('banner-link-btn');
 
             if (!window.bannerConfig.active) {
                 bannerSection.classList.add('hidden');
@@ -1071,13 +1053,6 @@
 
             bannerTitle.textContent = window.bannerConfig.title || '프라모 공작소 재고 관리';
             bannerSub.textContent = window.bannerConfig.subtitle || '';
-            bannerBtnText.textContent = window.bannerConfig.btnText || '자세히 보기';
-            bannerLinkBtn.href = window.bannerConfig.linkUrl || '#';
-            if (window.bannerConfig.linkUrl === '#' || !window.bannerConfig.linkUrl) {
-                bannerLinkBtn.onclick = (e) => { e.preventDefault(); openAdminModal('master'); };
-            } else {
-                bannerLinkBtn.onclick = null;
-            }
 
             if (window.bannerConfig.mediaType === 'video' && window.bannerConfig.videoUrl) {
                 bannerImg.classList.add('hidden');
@@ -1661,8 +1636,6 @@
             document.getElementById('banner-video-url').value = window.bannerConfig.videoUrl || '';
             document.getElementById('banner-input-title').value = window.bannerConfig.title || '';
             document.getElementById('banner-input-subtitle').value = window.bannerConfig.subtitle || '';
-            document.getElementById('banner-input-btn-text').value = window.bannerConfig.btnText || '';
-            document.getElementById('banner-input-link').value = window.bannerConfig.linkUrl || '';
 
             toggleBannerMediaInputs();
             document.getElementById('admin-modal').classList.remove('hidden');
@@ -1763,8 +1736,6 @@
             window.bannerConfig.videoUrl = document.getElementById('banner-video-url').value.trim();
             window.bannerConfig.title = document.getElementById('banner-input-title').value.trim();
             window.bannerConfig.subtitle = document.getElementById('banner-input-subtitle').value.trim();
-            window.bannerConfig.btnText = document.getElementById('banner-input-btn-text').value.trim();
-            window.bannerConfig.linkUrl = document.getElementById('banner-input-link').value.trim();
 
             saveBanner();
             renderBanner();
