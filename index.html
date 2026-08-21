@@ -735,7 +735,7 @@
         </div>
     </div>
 
-    <!-- 4. Camera Barcode Scanner Modal (Enhanced for PWA Live Scan Sync) -->
+    <!-- 4. Camera Barcode Scanner Modal (Enhanced HTTPS & Permission Error Handling) -->
     <div id="scanner-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -884,7 +884,7 @@
                 window.showToast(`${user.displayName || '관리자'} 님 환영합니다!`, 'success');
 
                 // 1. Subscribe to user Firestore inventory document
-                const userDocRef = doc(db, "inventories", user.uid);
+                const userDocRef = doc(doc(db, "inventories", user.uid));
                 unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -907,7 +907,7 @@
                     console.error("Firestore sync error:", error);
                 });
 
-                // 2. Subscribe to PWA Live Scans collection for real-time mobile barcode scan reception (방식 C)
+                // 2. Subscribe to PWA Live Scans collection for real-time mobile barcode scan reception
                 const scanDocRef = doc(db, "live_scans", user.uid);
                 unsubscribeScan = onSnapshot(scanDocRef, (scanSnap) => {
                     if (scanSnap.exists()) {
@@ -1014,7 +1014,7 @@
             active: true,
             mediaType: 'image',
             imgUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1600&auto=format&fit=crop&q=80',
-            imgPositionY: 50, // 0 = top focus (face/head), 50 = center, 100 = bottom focus
+            imgPositionY: 50,
             videoUrl: '',
             title: '프라모 공작소 & 모형재고 통합 관리',
             subtitle: '스마트폰 바코드 스캔과 엑셀 기준정보 연동으로 정밀하고 스마트하게 매장을 운영하세요.'
@@ -1087,7 +1087,6 @@
             window.products = [];
             window.masterData = { ...defaultMasterData };
             
-            // Preserve customized banner configuration across logout
             const storedBanner = localStorage.getItem(BANNER_KEY);
             if (storedBanner) {
                 try {
@@ -1384,7 +1383,7 @@
                 }
             }
 
-            // Render Table Rows (Columns matching Excel Export/Import exactly)
+            // Render Table Rows
             tbody.innerHTML = '';
             filtered.forEach((p, idx) => {
                 const isLowStock = Number(p.stock) <= 5;
@@ -1934,43 +1933,82 @@
             }
         }
 
-        // PWA Live Mobile Scanner Mode Handler (방식 C)
-        function openScannerModal() {
-            document.getElementById('scanner-modal').classList.remove('hidden');
-            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 } });
-            
-            scanner.render((decodedText) => {
-                const liveSyncEnabled = document.getElementById('live-pwa-sync-toggle').checked;
-                
-                if (liveSyncEnabled && typeof window.sendLiveScanToCloud === 'function') {
-                    // Send barcode signal to Firestore in real-time
-                    window.sendLiveScanToCloud(decodedText);
-                    showToast(`📱 PC로 실시간 바코드 전송: ${decodedText}`, 'success');
-                    
-                    const statusText = document.getElementById('scanner-status-text');
-                    if (statusText) {
-                        statusText.textContent = `✅ 최근 전송 바코드: ${decodedText} (${new Date().toLocaleTimeString()})`;
-                        statusText.className = 'text-xs text-center text-emerald-700 bg-emerald-50 py-2 rounded-lg border border-emerald-200 font-bold animate-pulse';
-                    }
-                } else {
-                    showToast(`바코드 스캔 성공: ${decodedText}`, 'success');
-                    scanner.clear();
-                    closeScannerModal();
+        // PWA Live Mobile Scanner Mode Handler (Enhanced with HTTPS & Permission Checks)
+        async function openScannerModal() {
+            // 1. Check if page is accessed over HTTPS or Localhost (Required for UserMedia camera access)
+            const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if (!isSecure) {
+                showToast('⚠️ 스마트폰 카메라 스캔은 HTTPS 보안 주소에서만 작동합니다. Netlify 또는 GitHub Pages 주소로 접속해 주세요.', 'warning');
+            }
 
-                    document.getElementById('search-input').value = decodedText;
-                    quickBarcodeSearch();
+            document.getElementById('scanner-modal').classList.remove('hidden');
+
+            // 2. Clear existing scanner instance safely before starting new rendering
+            if (scanner) {
+                try {
+                    await scanner.clear();
+                } catch(e) {
+                    console.log("Previous scanner clear error:", e);
                 }
-            }, (error) => {});
+                scanner = null;
+            }
+
+            // 3. Initialize Html5QrcodeScanner with error boundary handling
+            try {
+                scanner = new Html5QrcodeScanner("reader", { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 150 },
+                    rememberLastUsedCamera: true,
+                    aspectRatio: 1.0
+                });
+                
+                scanner.render((decodedText) => {
+                    const liveSyncEnabled = document.getElementById('live-pwa-sync-toggle').checked;
+                    
+                    if (liveSyncEnabled && typeof window.sendLiveScanToCloud === 'function') {
+                        // Send barcode signal to Firestore in real-time
+                        window.sendLiveScanToCloud(decodedText);
+                        showToast(`📱 PC로 실시간 바코드 전송: ${decodedText}`, 'success');
+                        
+                        const statusText = document.getElementById('scanner-status-text');
+                        if (statusText) {
+                            statusText.textContent = `✅ 최근 전송 바코드: ${decodedText} (${new Date().toLocaleTimeString()})`;
+                            statusText.className = 'text-xs text-center text-emerald-700 bg-emerald-50 py-2 rounded-lg border border-emerald-200 font-bold animate-pulse';
+                        }
+                    } else {
+                        showToast(`바코드 스캔 성공: ${decodedText}`, 'success');
+                        if (scanner) {
+                            scanner.clear().catch(e => console.log(e));
+                        }
+                        closeScannerModal();
+
+                        document.getElementById('search-input').value = decodedText;
+                        quickBarcodeSearch();
+                    }
+                }, (error) => {
+                    // Non-fatal scanning frame error ignore
+                });
+            } catch (err) {
+                console.error("Camera scanner initialization error:", err);
+                if (err.name === 'NotAllowedError' || err.toString().includes('Permission')) {
+                    showToast('카메라 접근 권한이 차단되었습니다. 스마트폰 브라우저 설정에서 카메라 권한을 허용해 주세요.', 'warning');
+                } else if (!isSecure) {
+                    showToast('HTTPS 주소가 아니어 스마트폰 카메라를 열 수 없습니다.', 'warning');
+                } else {
+                    showToast(`카메라 열기 실패: ${err.message || '카메라 설정을 확인하세요.'}`, 'warning');
+                }
+            }
         }
 
         function closeScannerModal() {
             if (scanner) {
                 scanner.clear().catch(e => console.log(e));
+                scanner = null;
             }
             document.getElementById('scanner-modal').classList.add('hidden');
         }
 
-        // Handle real-time barcode signal received on PC (방식 C Receiver)
+        // Handle real-time barcode signal received on PC (PWA Receiver)
         window.handleLiveScanReceived = function(barcode) {
             console.log("📱 실시간 모바일 스캔 이벤트 수신:", barcode);
             showToast(`📱 스마트폰 스캔 인식: ${barcode}`, 'success');
@@ -2115,7 +2153,7 @@
             }
         }
 
-        // Standardized Excel Export (Columns strictly matching Product Table Headers)
+        // Standardized Excel Export
         function exportToExcel() {
             const exportData = window.products.map((p, index) => ({
                 'No': index + 1,
