@@ -218,6 +218,12 @@
 
                     <!-- View Mode Switch & Sorting Options -->
                     <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
+                        <!-- Batch Edit Button (Hidden when count is 0) -->
+                        <button id="btn-batch-edit" onclick="openBatchEditModal()" class="hidden px-3 py-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 rounded-lg transition-colors flex items-center space-x-1 shadow-sm">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>선택 일괄 수정 (<span id="selected-edit-count">0</span>)</span>
+                        </button>
+
                         <!-- Batch Delete Button (Hidden when count is 0) -->
                         <button id="btn-batch-delete" onclick="deleteSelectedProducts()" class="hidden px-3 py-2 text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold border border-red-200 rounded-lg transition-colors flex items-center space-x-1 shadow-sm">
                             <i class="fa-solid fa-trash-can"></i>
@@ -323,7 +329,7 @@
             <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <!-- Product Top View -->
                 <div class="flex gap-4 items-start">
-                    <img id="detail-image" src="" alt="상품 이미지" class="w-28 h-28 object-cover rounded-xl border border-slate-200 bg-slate-50 flex-shrink-0 shadow-sm">
+                    <img id="detail-image" src="" alt="상품 이미지" class="w-28 h-28 object-cover rounded-xl border border-slate-200 bg-slate-50 flex-shrink-0 shadow-sm" style="object-position: center 50%;">
                     <div class="space-y-1.5 flex-1 min-w-0">
                         <h2 id="detail-name" class="text-lg font-bold text-slate-900 leading-snug break-words">상품명</h2>
                         <div class="flex items-center space-x-1.5 text-xs text-slate-500">
@@ -395,7 +401,7 @@
         </div>
     </div>
 
-    <!-- 2. Product Create / Edit Modal (With Image File Upload + Link Input) -->
+    <!-- 2. Product Create / Edit Modal (With Image File Upload + Position Slider) -->
     <div id="product-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
@@ -486,9 +492,9 @@
                     <input type="text" id="input-supplier-custom" placeholder="직접 브랜드 입력 (예: 반다이, 타미야)" class="hidden mt-1.5 w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
-                <!-- Product Image Selection: URL & File Upload Dual Input -->
-                <div class="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <label class="block text-xs font-bold text-slate-700">상품 대표 이미지 선택 (링크 주소 또는 파일 업로드)</label>
+                <!-- Product Image Selection & Focus Area Position Control -->
+                <div class="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <label class="block text-xs font-bold text-slate-700">상품 대표 이미지 및 카드 노출 위치 설정</label>
                     
                     <!-- URL Input -->
                     <div>
@@ -505,11 +511,37 @@
                         </div>
                     </div>
 
+                    <!-- Card View Vertical Focus Area Control Slider -->
+                    <div class="pt-2 border-t border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="font-bold text-slate-700 text-xs flex items-center space-x-1">
+                                <i class="fa-solid fa-arrows-up-down text-blue-600"></i>
+                                <span>카드 뷰 이미지 상/하 노출 위치 조절</span>
+                            </label>
+                            <span id="input-image-pos-val" class="text-xs font-mono font-bold text-blue-600">50% (중앙)</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400">
+                            💡 건담 상반신/헤드, 상단 포스터 등 강조하고 싶은 지점을 직접 세로 위치(%)로 선택하세요.
+                        </p>
+                        <input type="range" id="input-image-pos-y" min="0" max="100" value="50" oninput="updateProdPosPreview(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        
+                        <!-- Quick Position Presets -->
+                        <div class="flex space-x-2">
+                            <button type="button" onclick="setProdPosPreset(0)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">🤖 최상단 (얼굴)</button>
+                            <button type="button" onclick="setProdPosPreset(50)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">↔️ 정중앙</button>
+                            <button type="button" onclick="setProdPosPreset(100)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">⬇️ 하단 위주</button>
+                        </div>
+                    </div>
+
                     <!-- Image Preview Container -->
-                    <div id="image-preview-wrapper" class="hidden pt-1 flex items-center space-x-2 border-t border-slate-200">
-                        <span class="text-[11px] text-slate-400">이미지 미리보기:</span>
-                        <img id="image-preview-thumb" src="" alt="미리보기" class="w-12 h-12 object-cover rounded-lg border border-slate-300 shadow-sm bg-white">
-                        <button type="button" onclick="clearImageSelection()" class="text-[11px] text-red-500 hover:underline">이미지 지우기</button>
+                    <div id="image-preview-wrapper" class="hidden pt-2 border-t border-slate-200 space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] text-slate-500 font-semibold">카드 노출 실시간 미리보기:</span>
+                            <button type="button" onclick="clearImageSelection()" class="text-[11px] text-red-500 hover:underline">이미지 지우기</button>
+                        </div>
+                        <div class="w-full h-32 bg-slate-100 rounded-lg overflow-hidden border border-slate-300 relative">
+                            <img id="image-preview-thumb" src="" alt="미리보기" class="w-full h-full object-cover transition-all duration-150" style="object-position: center 50%;">
+                        </div>
                     </div>
                 </div>
 
@@ -533,7 +565,143 @@
         </div>
     </div>
 
-    <!-- 3. Admin & Master Data / Banner Settings Modal -->
+    <!-- 3. Batch Product Edit Modal (선택 상품 일괄 수정 모달) -->
+    <div id="batch-edit-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-600"></span>
+                    <h3 class="text-sm font-bold text-slate-800">선택 상품 일괄 수정 (<span id="batch-edit-modal-count">0</span>개)</h3>
+                </div>
+                <button onclick="closeBatchEditModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="batch-edit-form" onsubmit="handleBatchEditSubmit(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar text-xs">
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-blue-900 font-medium text-[11px] leading-relaxed">
+                    💡 수정하고자 하는 필드의 체크박스를 체크한 후 값을 설정하면, 현재 선택된 <b><span id="batch-edit-info-count">0</span>개 상품</b>에 한 번에 일괄 반영됩니다.
+                </div>
+
+                <!-- 1. Category -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-category" onchange="toggleBatchField('category')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>1. 카테고리 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-category" class="opacity-50 pointer-events-none pl-6 space-y-1.5 transition-all">
+                        <select id="batch-category-select" onchange="toggleBatchCustomInput('category')" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="batch-category-custom" placeholder="직접 입력 카테고리" class="hidden w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                    </div>
+                </div>
+
+                <!-- 2. Location -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-location" onchange="toggleBatchField('location')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>2. 진열 / 창고 위치 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-location" class="opacity-50 pointer-events-none pl-6 space-y-1.5 transition-all">
+                        <select id="batch-location-select" onchange="toggleBatchCustomInput('location')" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="batch-location-custom" placeholder="직접 입력 위치 (예: A-2-1)" class="hidden w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                    </div>
+                </div>
+
+                <!-- 3. Brand -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-supplier" onchange="toggleBatchField('supplier')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>3. 브랜드 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-supplier" class="opacity-50 pointer-events-none pl-6 space-y-1.5 transition-all">
+                        <select id="batch-supplier-select" onchange="toggleBatchCustomInput('supplier')" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="batch-supplier-custom" placeholder="직접 입력 브랜드 (예: 반다이)" class="hidden w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                    </div>
+                </div>
+
+                <!-- 4. Spec -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-spec" onchange="toggleBatchField('spec')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>4. 규격 / 옵션 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-spec" class="opacity-50 pointer-events-none pl-6 space-y-1.5 transition-all">
+                        <select id="batch-spec-select" onchange="toggleBatchCustomInput('spec')" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500">
+                            <!-- Populated dynamically -->
+                        </select>
+                        <input type="text" id="batch-spec-custom" placeholder="직접 입력 규격 (예: 1/144 스케일)" class="hidden w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                    </div>
+                </div>
+
+                <!-- 5. Stock Qty -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-stock" onchange="toggleBatchField('stock')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>5. 재고 수량 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-stock" class="opacity-50 pointer-events-none pl-6 transition-all">
+                        <input type="number" id="batch-stock-val" min="0" placeholder="수량 입력" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                    </div>
+                </div>
+
+                <!-- 6. Cost Price & Selling Price -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-price" onchange="toggleBatchField('price')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>6. 매입가 / 판매가 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-price" class="opacity-50 pointer-events-none pl-6 grid grid-cols-2 gap-2 transition-all">
+                        <div>
+                            <span class="text-[10px] text-slate-500 font-semibold block mb-0.5">매입가 (원)</span>
+                            <input type="number" id="batch-cost-val" min="0" step="10" placeholder="0" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-500 font-semibold block mb-0.5">판매가 (원)</span>
+                            <input type="number" id="batch-sell-val" min="0" step="10" placeholder="0" class="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Image Vertical Focus Position -->
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <label class="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="batch-apply-pos" onchange="toggleBatchField('pos')" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+                        <span>7. 카드 뷰 이미지 상/하 노출 위치 일괄 변경</span>
+                    </label>
+                    <div id="batch-group-pos" class="opacity-50 pointer-events-none pl-6 space-y-2 transition-all">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[11px] font-semibold text-slate-600">선택 위치:</span>
+                            <span id="batch-pos-val-text" class="font-mono font-bold text-blue-600">50% (중앙)</span>
+                        </div>
+                        <input type="range" id="batch-pos-slider" min="0" max="100" value="50" oninput="updateBatchPosText(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                        <div class="flex space-x-2">
+                            <button type="button" onclick="setBatchPosPreset(0)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">🤖 최상단 (얼굴)</button>
+                            <button type="button" onclick="setBatchPosPreset(50)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">↔️ 정중앙</button>
+                            <button type="button" onclick="setBatchPosPreset(100)" class="px-2 py-1 text-[10px] bg-white border border-slate-200 rounded hover:bg-blue-50 font-semibold text-slate-700">⬇️ 하단 위주</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="pt-2 flex justify-end space-x-2 border-t border-slate-100">
+                    <button type="button" onclick="closeBatchEditModal()" class="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200">
+                        취소
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 shadow-sm">
+                        일괄 수정 저장
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. Admin & Master Data / Banner Settings Modal -->
     <div id="admin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
             <!-- Header Tabs -->
@@ -735,7 +903,7 @@
         </div>
     </div>
 
-    <!-- 4. Camera Barcode Scanner Modal (Enhanced HTTPS & Permission Error Handling) -->
+    <!-- 5. Camera Barcode Scanner Modal -->
     <div id="scanner-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -772,7 +940,7 @@
         </div>
     </div>
 
-    <!-- 5. Excel Data Import & Export Modal -->
+    <!-- 6. Excel Data Import & Export Modal -->
     <div id="data-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5">
             <div class="flex justify-between items-center">
@@ -824,7 +992,7 @@
         </div>
     </div>
 
-    <!-- 6. Custom Confirm Modal -->
+    <!-- 7. Custom Confirm Modal -->
     <div id="confirm-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl">
@@ -890,7 +1058,7 @@
                 window.updateAuthUI(true, user.displayName || user.email || '관리자 님');
                 window.showToast(`${user.displayName || '관리자'} 님 환영합니다!`, 'success');
 
-                // 1. Subscribe to user Firestore inventory document (Corrected doc reference)
+                // 1. Subscribe to user Firestore inventory document
                 const userDocRef = doc(db, "inventories", user.uid);
                 unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -1035,10 +1203,10 @@
 
         // Initial Product Samples
         const sampleProducts = [
-            { id: '1', barcode: '8801043014830', name: '농심 신라면 5입', category: '식품', spec: '120g*5', stock: 24, costPrice: 3800, sellPrice: 4500, location: 'A-1-1', supplier: '농심', memo: '인기 라면 품목, 1열 진열', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() },
-            { id: '2', barcode: '8801062631025', name: '삼다수 생수 2L', category: '식품', spec: '2000ml', stock: 3, costPrice: 850, sellPrice: 1200, location: 'A-1-2', supplier: '삼다수', memo: '재고 부족 주의', image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 1000 },
-            { id: '3', barcode: '8801007028415', name: '크리넥스 3겹 휴지 30롤', category: '생활용품', spec: '30롤', stock: 12, costPrice: 15900, sellPrice: 19800, location: 'B-2-1', supplier: '유한킴벌리', memo: '화장지 코너', image: 'https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 2000 },
-            { id: '4', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', updatedAt: Date.now() - 3000 }
+            { id: '1', barcode: '8801043014830', name: '농심 신라면 5입', category: '식품', spec: '120g*5', stock: 24, costPrice: 3800, sellPrice: 4500, location: 'A-1-1', supplier: '농심', memo: '인기 라면 품목, 1열 진열', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=60', imagePositionY: 50, updatedAt: Date.now() },
+            { id: '2', barcode: '8801062631025', name: '삼다수 생수 2L', category: '식품', spec: '2000ml', stock: 3, costPrice: 850, sellPrice: 1200, location: 'A-1-2', supplier: '삼다수', memo: '재고 부족 주의', image: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=300&auto=format&fit=crop&q=60', imagePositionY: 50, updatedAt: Date.now() - 1000 },
+            { id: '3', barcode: '8801007028415', name: '크리넥스 3겹 휴지 30롤', category: '생활용품', spec: '30롤', stock: 12, costPrice: 15900, sellPrice: 19800, location: 'B-2-1', supplier: '유한킴벌리', memo: '화장지 코너', image: 'https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=300&auto=format&fit=crop&q=60', imagePositionY: 50, updatedAt: Date.now() - 2000 },
+            { id: '4', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', imagePositionY: 10, updatedAt: Date.now() - 3000 }
         ];
 
         // Global State variables
@@ -1309,18 +1477,21 @@
 
         function updateSelectionUI() {
             const count = selectedProductIds.size;
-            const btnBatch = document.getElementById('btn-batch-delete');
+            const btnBatchDelete = document.getElementById('btn-batch-delete');
+            const btnBatchEdit = document.getElementById('btn-batch-edit');
             const selectedCountElem = document.getElementById('selected-count');
+            const selectedEditCountElem = document.getElementById('selected-edit-count');
             const selectAllCb = document.getElementById('select-all-checkbox');
 
             if (selectedCountElem) selectedCountElem.textContent = count;
+            if (selectedEditCountElem) selectedEditCountElem.textContent = count;
 
-            if (btnBatch) {
-                if (count > 0) {
-                    btnBatch.classList.remove('hidden');
-                } else {
-                    btnBatch.classList.add('hidden');
-                }
+            if (count > 0) {
+                if (btnBatchDelete) btnBatchDelete.classList.remove('hidden');
+                if (btnBatchEdit) btnBatchEdit.classList.remove('hidden');
+            } else {
+                if (btnBatchDelete) btnBatchDelete.classList.add('hidden');
+                if (btnBatchEdit) btnBatchEdit.classList.add('hidden');
             }
 
             if (selectAllCb) {
@@ -1402,6 +1573,7 @@
                 const isLowStock = Number(p.stock) <= 5;
                 const defaultImg = `https://placehold.co/100x100/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
                 const imgSrc = p.image || defaultImg;
+                const imgPosY = p.imagePositionY !== undefined ? p.imagePositionY : 50;
                 const isChecked = selectedProductIds.has(p.id);
 
                 const tr = document.createElement('tr');
@@ -1414,7 +1586,7 @@
                     </td>
                     <td class="p-3 text-center text-slate-400 font-mono">${idx + 1}</td>
                     <td class="p-2 text-center">
-                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-10 h-10 object-cover rounded-lg border border-slate-200 mx-auto shadow-sm bg-slate-100">
+                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-10 h-10 object-cover rounded-lg border border-slate-200 mx-auto shadow-sm bg-slate-100" style="object-position: center ${imgPosY}%;">
                     </td>
                     <td class="p-3 font-mono font-bold text-slate-700">${p.barcode || '-'}</td>
                     <td class="p-3 text-slate-600 font-medium">${p.supplier || '-'}</td>
@@ -1440,12 +1612,13 @@
                 tbody.appendChild(tr);
             });
 
-            // Render Card View
+            // Render Card View with Custom Vertical Object-Position Focus Area
             gridContainer.innerHTML = '';
             filtered.forEach(p => {
                 const isLowStock = Number(p.stock) <= 5;
                 const defaultImg = `https://placehold.co/300x200/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
                 const imgSrc = p.image || defaultImg;
+                const imgPosY = p.imagePositionY !== undefined ? p.imagePositionY : 50;
                 const isChecked = selectedProductIds.has(p.id);
 
                 const card = document.createElement('div');
@@ -1454,7 +1627,7 @@
 
                 card.innerHTML = `
                     <div class="relative h-36 bg-slate-100 overflow-hidden">
-                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" style="object-position: center ${imgPosY}%;">
                         <div class="absolute top-2 left-2 z-10 flex items-center space-x-1.5" onclick="event.stopPropagation()">
                             <input type="checkbox" class="product-select-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer bg-white/90 shadow-sm" ${isChecked ? 'checked' : ''} onchange="toggleProductSelection('${p.id}', this.checked)">
                             <span class="bg-slate-900/70 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-md font-mono">
@@ -1538,7 +1711,9 @@
             }
 
             const defaultImg = `https://placehold.co/300x300/f1f5f9/94a3b8?text=${encodeURIComponent((product.name || 'P').charAt(0))}`;
-            document.getElementById('detail-image').src = product.image || defaultImg;
+            const detailImgElem = document.getElementById('detail-image');
+            detailImgElem.src = product.image || defaultImg;
+            detailImgElem.style.objectPosition = `center ${product.imagePositionY !== undefined ? product.imagePositionY : 50}%`;
 
             const stockText = document.getElementById('detail-stock-status-text');
             if (Number(product.stock) <= 5) {
@@ -1585,6 +1760,32 @@
             openProductModal(id);
         }
 
+        function updateProdPosPreview(val) {
+            if (val === undefined) {
+                val = document.getElementById('input-image-pos-y').value;
+            }
+            val = Number(val);
+
+            const posTextElem = document.getElementById('input-image-pos-val');
+            const previewThumb = document.getElementById('image-preview-thumb');
+
+            let label = `${val}%`;
+            if (val <= 20) label += ' (상단/얼굴 위주)';
+            else if (val >= 80) label += ' (하단 위주)';
+            else if (val >= 40 && val <= 60) label += ' (정중앙)';
+
+            if (posTextElem) posTextElem.textContent = label;
+            if (previewThumb) previewThumb.style.objectPosition = `center ${val}%`;
+        }
+
+        function setProdPosPreset(val) {
+            const rangeElem = document.getElementById('input-image-pos-y');
+            if (rangeElem) {
+                rangeElem.value = val;
+                updateProdPosPreview(val);
+            }
+        }
+
         function openProductModal(editId = null, presetBarcode = null) {
             populateMasterDropdowns();
 
@@ -1601,7 +1802,11 @@
                     document.getElementById('input-image').value = p.image || '';
                     document.getElementById('input-memo').value = p.memo || '';
 
+                    const posY = p.imagePositionY !== undefined ? p.imagePositionY : 50;
+                    document.getElementById('input-image-pos-y').value = posY;
+
                     updateImagePreviewFromUrl(p.image || '');
+                    updateProdPosPreview(posY);
 
                     setDropdownValue('category', p.category);
                     setDropdownValue('spec', p.spec);
@@ -1613,7 +1818,9 @@
                 document.getElementById('product-form').reset();
                 document.getElementById('edit-product-id').value = '';
                 document.getElementById('input-stock').value = '1';
+                document.getElementById('input-image-pos-y').value = 50;
                 clearImageSelection();
+                updateProdPosPreview(50);
 
                 if (presetBarcode) {
                     document.getElementById('input-barcode').value = presetBarcode;
@@ -1751,6 +1958,7 @@
             const costPrice = Number(document.getElementById('input-cost').value || 0);
             const sellPrice = Number(document.getElementById('input-sell').value || 0);
             const image = document.getElementById('input-image').value.trim();
+            const imagePositionY = Number(document.getElementById('input-image-pos-y').value || 50);
             const memo = document.getElementById('input-memo').value.trim();
 
             if (!barcode || !name) {
@@ -1761,7 +1969,11 @@
             if (editId) {
                 const idx = window.products.findIndex(p => p.id === editId);
                 if (idx !== -1) {
-                    window.products[idx] = { ...window.products[idx], barcode, name, category, spec, stock, costPrice, sellPrice, location, supplier, image, memo, updatedAt: Date.now() };
+                    window.products[idx] = { 
+                        ...window.products[idx], 
+                        barcode, name, category, spec, stock, costPrice, sellPrice, 
+                        location, supplier, image, imagePositionY, memo, updatedAt: Date.now() 
+                    };
                     showToast('상품 정보가 성공적으로 수정되었습니다.', 'success');
                 }
             } else {
@@ -1777,6 +1989,7 @@
                     location,
                     supplier,
                     image,
+                    imagePositionY,
                     memo,
                     updatedAt: Date.now()
                 };
@@ -1788,6 +2001,158 @@
             renderCategories();
             renderProducts();
             closeProductModal();
+        }
+
+        function openBatchEditModal() {
+            const count = selectedProductIds.size;
+            if (count === 0) {
+                showToast('수정할 상품을 먼저 체크박스로 선택하세요.', 'warning');
+                return;
+            }
+
+            document.getElementById('batch-edit-modal-count').textContent = count;
+            document.getElementById('batch-edit-info-count').textContent = count;
+
+            // Reset Batch Form State
+            document.getElementById('batch-edit-form').reset();
+
+            // Populate Master Dropdowns in Batch Edit Modal
+            const batchFields = [
+                { key: 'category', list: window.masterData.categories.filter(c => c !== '전체') },
+                { key: 'spec', list: window.masterData.specs },
+                { key: 'location', list: window.masterData.locations },
+                { key: 'supplier', list: window.masterData.suppliers }
+            ];
+
+            batchFields.forEach(field => {
+                const select = document.getElementById(`batch-${field.key}-select`);
+                if (!select) return;
+                select.innerHTML = `<option value="">[선택 안함 / 빈칸 (미지정)]</option>`;
+                field.list.forEach(item => {
+                    if (item && item !== '미지정') {
+                        select.innerHTML += `<option value="${item}">${item}</option>`;
+                    }
+                });
+                select.innerHTML += `<option value="__custom__">✏️ 직접 입력 (기타)</option>`;
+            });
+
+            // Disable field containers
+            ['category', 'location', 'supplier', 'spec', 'stock', 'price', 'pos'].forEach(f => {
+                toggleBatchField(f);
+            });
+
+            updateBatchPosText(50);
+            document.getElementById('batch-edit-modal').classList.remove('hidden');
+        }
+
+        function closeBatchEditModal() {
+            document.getElementById('batch-edit-modal').classList.add('hidden');
+        }
+
+        function toggleBatchField(fieldKey) {
+            const cb = document.getElementById(`batch-apply-${fieldKey}`);
+            const group = document.getElementById(`batch-group-${fieldKey}`);
+
+            if (cb && group) {
+                if (cb.checked) {
+                    group.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    group.classList.add('opacity-50', 'pointer-events-none');
+                }
+            }
+        }
+
+        function toggleBatchCustomInput(fieldKey) {
+            const select = document.getElementById(`batch-${fieldKey}-select`);
+            const customInput = document.getElementById(`batch-${fieldKey}-custom`);
+
+            if (select.value === '__custom__') {
+                customInput.classList.remove('hidden');
+                customInput.focus();
+            } else {
+                customInput.classList.add('hidden');
+                customInput.value = '';
+            }
+        }
+
+        function getBatchDropdownValue(fieldKey) {
+            const select = document.getElementById(`batch-${fieldKey}-select`);
+            const customInput = document.getElementById(`batch-${fieldKey}-custom`);
+
+            if (select.value === '__custom__') {
+                return customInput.value.trim();
+            }
+            return select.value;
+        }
+
+        function updateBatchPosText(val) {
+            val = Number(val);
+            const textElem = document.getElementById('batch-pos-val-text');
+            let label = `${val}%`;
+            if (val <= 20) label += ' (상단/얼굴 위주)';
+            else if (val >= 80) label += ' (하단 위주)';
+            else if (val >= 40 && val <= 60) label += ' (정중앙)';
+            if (textElem) textElem.textContent = label;
+        }
+
+        function setBatchPosPreset(val) {
+            const rangeElem = document.getElementById('batch-pos-slider');
+            if (rangeElem) {
+                rangeElem.value = val;
+                updateBatchPosText(val);
+            }
+        }
+
+        function handleBatchEditSubmit(e) {
+            e.preventDefault();
+
+            const count = selectedProductIds.size;
+            if (count === 0) return;
+
+            const applyCategory = document.getElementById('batch-apply-category').checked;
+            const applyLocation = document.getElementById('batch-apply-location').checked;
+            const applySupplier = document.getElementById('batch-apply-supplier').checked;
+            const applySpec = document.getElementById('batch-apply-spec').checked;
+            const applyStock = document.getElementById('batch-apply-stock').checked;
+            const applyPrice = document.getElementById('batch-apply-price').checked;
+            const applyPos = document.getElementById('batch-apply-pos').checked;
+
+            if (!applyCategory && !applyLocation && !applySupplier && !applySpec && !applyStock && !applyPrice && !applyPos) {
+                showToast('적용할 항목의 체크박스를 최소 하나 이상 선택해 주세요.', 'warning');
+                return;
+            }
+
+            const newCategory = getBatchDropdownValue('category');
+            const newLocation = getBatchDropdownValue('location');
+            const newSupplier = getBatchDropdownValue('supplier');
+            const newSpec = getBatchDropdownValue('spec');
+            const newStock = Number(document.getElementById('batch-stock-val').value || 0);
+            const newCost = Number(document.getElementById('batch-cost-val').value || 0);
+            const newSell = Number(document.getElementById('batch-sell-val').value || 0);
+            const newPos = Number(document.getElementById('batch-pos-slider').value || 50);
+
+            // Apply changes to selected products
+            window.products.forEach((p, idx) => {
+                if (selectedProductIds.has(p.id)) {
+                    if (applyCategory) p.category = newCategory;
+                    if (applyLocation) p.location = newLocation;
+                    if (applySupplier) p.supplier = newSupplier;
+                    if (applySpec) p.spec = newSpec;
+                    if (applyStock) p.stock = newStock;
+                    if (applyPrice) {
+                        p.costPrice = newCost;
+                        p.sellPrice = newSell;
+                    }
+                    if (applyPos) p.imagePositionY = newPos;
+                    p.updatedAt = Date.now();
+                }
+            });
+
+            saveProducts();
+            renderCategories();
+            renderProducts();
+            closeBatchEditModal();
+            showToast(`선택된 ${count}개 상품의 정보가 성공적으로 일괄 수정되었습니다.`, 'success');
         }
 
         function openAdminModal(tab = 'master') {
@@ -1946,9 +2311,8 @@
             }
         }
 
-        // PWA Live Mobile Scanner Mode Handler (Enhanced with HTTPS & Permission Checks)
+        // PWA Live Mobile Scanner Mode Handler
         async function openScannerModal() {
-            // 1. Check if page is accessed over HTTPS or Localhost
             const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
             if (!isSecure) {
                 showToast('⚠️ 스마트폰 카메라 스캔은 HTTPS 보안 주소에서만 작동합니다. Netlify 또는 GitHub Pages 주소로 접속해 주세요.', 'warning');
@@ -1956,7 +2320,6 @@
 
             document.getElementById('scanner-modal').classList.remove('hidden');
 
-            // 2. Clear existing scanner instance safely before starting new rendering
             if (scanner) {
                 try {
                     await scanner.clear();
@@ -1966,7 +2329,6 @@
                 scanner = null;
             }
 
-            // 3. Initialize Html5QrcodeScanner with error boundary handling
             try {
                 scanner = new Html5QrcodeScanner("reader", { 
                     fps: 10, 
@@ -1979,7 +2341,6 @@
                     const liveSyncEnabled = document.getElementById('live-pwa-sync-toggle').checked;
                     
                     if (liveSyncEnabled && typeof window.sendLiveScanToCloud === 'function') {
-                        // Send barcode signal to Firestore in real-time
                         window.sendLiveScanToCloud(decodedText);
                         showToast(`📱 PC로 실시간 바코드 전송: ${decodedText}`, 'success');
                         
@@ -1998,9 +2359,7 @@
                         document.getElementById('search-input').value = decodedText;
                         quickBarcodeSearch();
                     }
-                }, (error) => {
-                    // Non-fatal scanning frame error ignore
-                });
+                }, (error) => {});
             } catch (err) {
                 console.error("Camera scanner initialization error:", err);
                 if (err.name === 'NotAllowedError' || err.toString().includes('Permission')) {
@@ -2021,16 +2380,13 @@
             document.getElementById('scanner-modal').classList.add('hidden');
         }
 
-        // Handle real-time barcode signal received on PC (PWA Receiver)
         window.handleLiveScanReceived = function(barcode) {
             console.log("📱 실시간 모바일 스캔 이벤트 수신:", barcode);
             showToast(`📱 스마트폰 스캔 인식: ${barcode}`, 'success');
 
-            // 1. Fill search box
             const searchInput = document.getElementById('search-input');
             if (searchInput) searchInput.value = barcode;
 
-            // 2. Lookup existing product or trigger new creation
             const existingProduct = window.products.find(p => p.barcode === barcode);
             if (existingProduct) {
                 openDetailModal(existingProduct.id);
@@ -2131,6 +2487,7 @@
                                 location: String(row['진열위치'] || row['창고위치'] || row['위치'] || ''),
                                 supplier: String(row['브랜드'] || row['공급처'] || row['거래처'] || ''),
                                 image: String(row['대표이미지'] || row['이미지'] || row['상품이미지'] || ''),
+                                imagePositionY: Number(row['이미지위치'] || 50),
                                 memo: String(row['비고'] || row['메모'] || ''),
                                 updatedAt: Date.now()
                             }));
@@ -2171,6 +2528,7 @@
             const exportData = window.products.map((p, index) => ({
                 'No': index + 1,
                 '대표이미지': p.image || '',
+                '이미지위치': p.imagePositionY !== undefined ? p.imagePositionY : 50,
                 '바코드': p.barcode,
                 '브랜드': p.supplier || '',
                 '상품명': p.name,
@@ -2211,6 +2569,7 @@
                 {
                     'No': 1,
                     '대표이미지': 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300',
+                    '이미지위치': 10,
                     '바코드': '4573102618023',
                     '브랜드': '반다이',
                     '상품명': 'HGUC 1/144 뉴 건담',
