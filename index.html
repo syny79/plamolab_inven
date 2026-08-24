@@ -1513,7 +1513,7 @@
                     <td class="p-3 text-right font-mono text-slate-600">₩${cost.toLocaleString()}</td>
                     <td class="p-3 text-right font-mono font-bold text-slate-900">₩${sell.toLocaleString()}</td>
                     <td class="p-3 text-right font-mono bg-blue-50/50">
-                        <div class="font-bold text-sm ${profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'}">${profitVsLowest >= 0 ? '' : '-' }₩${Math.abs(profitVsLowest).toLocaleString()}</div>
+                        <div class="font-bold text-sm ${profitVsLowest >= 0 ? 'text-blue-600' : 'text-red-500'}">₩${profitVsLowest.toLocaleString()}</div>
                     </td>
                     
                     <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">${p.category || '미지정'}</span></td>
@@ -1593,7 +1593,7 @@
                             </div>
                             <div>
                                 <span class="text-blue-800 font-semibold">판매수익:</span>
-                                <span class="font-bold ${profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'} ml-1">${profitVsLowest >= 0 ? '' : '-' }₩${Math.abs(profitVsLowest).toLocaleString()}</span>
+                                <span class="font-bold ${profitVsLowest >= 0 ? 'text-blue-700' : 'text-red-500'} ml-1">₩${profitVsLowest.toLocaleString()}</span>
                             </div>
                         </div>
                         <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -1675,8 +1675,8 @@
             document.getElementById('detail-manual-lowest').textContent = `₩${manualLowest.toLocaleString()}`;
             
             const detailProfitElem = document.getElementById('detail-profit-lowest');
-            detailProfitElem.textContent = `${profitVsLowest >= 0 ? '' : '-' }₩${Math.abs(profitVsLowest).toLocaleString()}`;
-            detailProfitElem.className = `font-bold ${profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'}`;
+            detailProfitElem.textContent = `₩${profitVsLowest.toLocaleString()}`;
+            detailProfitElem.className = `font-bold ${profitVsLowest >= 0 ? 'text-blue-700' : 'text-red-500'}`;
             
             const urlContainer = document.getElementById('detail-lowest-url-container');
             if (lowestUrl) {
