@@ -1375,43 +1375,96 @@
             }
         }
 
-        // 최저가 검색 모의 기능 (API 호출 대용)
-        async function searchLowestPrice(id) {
+        // 공통 검색 (API 호출 / Mock 처리)
+        async function performSearch(id) {
             const idx = window.products.findIndex(p => p.id === id);
             if (idx === -1) return;
             
             const p = window.products[idx];
-            const keyword = p.searchKeyword || p.name; // 검색어 우선, 없으면 상품명
+            const keyword = p.searchKeyword || p.name;
 
             if (!keyword) {
                 showToast('검색어나 상품명이 지정되지 않았습니다.', 'warning');
                 return;
             }
 
+            const excludeOverseas = document.getElementById('exclude-overseas-search')?.checked;
+
             showToast(`'${keyword}' 최저가 검색 중...`, 'info');
             
-            /*
-                주의: 브라우저(Front-end)에서 직접 외부 포털을 크롤링하는 것은 CORS 정책에 의해 차단됩니다.
-                실무에서는 Node.js/Python 기반 API 서버를 거치거나 네이버 쇼핑 오픈 API를 활용해야 합니다.
-                여기서는 기능을 보여주기 위한 모의(Mock) 데이터 및 네이버 쇼핑 외부 URL 링크를 생성합니다.
-            */
-            setTimeout(() => {
-                // 모의(Mock) 최저가: 판매가의 80% ~ 95% 사이의 임의 가격 형성
-                let mockPrice = p.sellPrice > 0 ? Math.floor(p.sellPrice * (0.8 + Math.random() * 0.15)) : Math.floor(Math.random() * 20000) + 5000;
-                mockPrice = Math.floor(mockPrice / 10) * 10; // 10원 단위 절사
+            // 실제 네이버 API 연동 (corsproxy.io 우회)
+            // 사용자 API Key를 입력해야 실제 데이터 동작 가능
+            const clientId = "YOUR_CLIENT_ID"; 
+            const clientSecret = "YOUR_CLIENT_SECRET";
+
+            let apiUrl = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=1&sort=asc`;
+            if (excludeOverseas) {
+                 apiUrl += `&exclude=cbshop`;
+            }
+
+            // API Key 미입력 시 Mock 동작 수행
+            if (clientId === "YOUR_CLIENT_ID") {
+                setTimeout(() => {
+                    let mockPrice = p.sellPrice > 0 ? Math.floor(p.sellPrice * (0.8 + Math.random() * 0.15)) : Math.floor(Math.random() * 20000) + 5000;
+                    mockPrice = Math.floor(mockPrice / 10) * 10; 
+                    
+                    let searchUrl = `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(keyword)}`;
+                    if (excludeOverseas) searchUrl += '&ex=cbshop';
+
+                    window.products[idx].autoLowestPrice = mockPrice;
+                    window.products[idx].lowestPriceUrl = searchUrl;
+                    window.products[idx].manualLowestPrice = mockPrice;
+                    window.products[idx].updatedAt = Date.now();
+
+                    saveProducts();
+                    renderProducts();
+                    
+                    if(activeDetailProductId === id){
+                         openDetailModal(id);
+                    }
+
+                    showToast(`'${keyword}' 최저가 모의 검색 완료! (실제 API 키를 입력하세요)`, 'success');
+                }, 1000);
+                return;
+            }
+
+            // 실제 네이버 쇼핑 API 호출 (프록시 경유)
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+
+            try {
+                const response = await fetch(proxyUrl, {
+                    headers: {
+                        "X-Naver-Client-Id": clientId,
+                        "X-Naver-Client-Secret": clientSecret
+                    }
+                });
                 
-                const searchUrl = `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(keyword)}`;
+                const data = await response.json();
+                
+                if (data.items && data.items.length > 0) {
+                    const lowestPrice = parseInt(data.items[0].lprice, 10);
+                    const link = data.items[0].link;
+                    
+                    window.products[idx].autoLowestPrice = lowestPrice;
+                    window.products[idx].lowestPriceUrl = link;
+                    window.products[idx].manualLowestPrice = lowestPrice;
+                    window.products[idx].updatedAt = Date.now();
 
-                window.products[idx].autoLowestPrice = mockPrice;
-                window.products[idx].lowestPriceUrl = searchUrl;
-                // 검색 완료 후 최저가(자동)을 최저가(수동) 칸에 자동으로 복사해 줌
-                window.products[idx].manualLowestPrice = mockPrice;
-                window.products[idx].updatedAt = Date.now();
+                    saveProducts();
+                    renderProducts();
+                    
+                    if(activeDetailProductId === id){
+                         openDetailModal(id);
+                    }
 
-                saveProducts();
-                renderProducts();
-                showToast(`'${keyword}' 최저가 정보가 업데이트 되었습니다!`, 'success');
-            }, 1000);
+                    showToast(`'${keyword}' 최저가 업데이트 완료! (₩${lowestPrice.toLocaleString()})`, 'success');
+                } else {
+                    showToast('네이버 쇼핑에서 검색된 결과가 없습니다.', 'warning');
+                }
+            } catch (error) {
+                console.error("Naver API Error:", error);
+                showToast('최저가 검색에 실패했습니다. (API 키 또는 프록시 확인 필요)', 'warning');
+            }
         }
 
         function renderProducts() {
@@ -1489,7 +1542,6 @@
                 const profitText = profitVsLowest >= 0 ? `+₩${profitVsLowest.toLocaleString()}` : `-₩${Math.abs(profitVsLowest).toLocaleString()}`;
                 const profitColor = profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'; // Changed
 
-
                 const unitProfit = sell - cost;
                 const unitMarginRate = sell > 0 ? ((unitProfit / sell) * 100).toFixed(1) : 0;
                 const totalProfit = unitProfit * stock;
@@ -1514,7 +1566,7 @@
                     
                     <td class="p-2"><input type="text" value="${searchKeyword}" onchange="updateProductField('${p.id}', 'searchKeyword', this.value)" onclick="event.stopPropagation()" class="w-24 text-xs border border-slate-200 rounded p-1.5 bg-white focus:ring-1 focus:ring-blue-500" placeholder="검색어"></td>
                     <td class="p-2 text-center" onclick="event.stopPropagation()">
-                        <button onclick="searchLowestPrice('${p.id}')" class="px-2 py-1.5 bg-indigo-600 text-white rounded border border-indigo-700 text-[10px] font-bold hover:bg-indigo-700 flex items-center justify-center gap-1 mx-auto shadow-sm transition-colors">
+                        <button onclick="performSearch('${p.id}')" class="px-2 py-1.5 bg-indigo-600 text-white rounded border border-indigo-700 text-[10px] font-bold hover:bg-indigo-700 flex items-center justify-center gap-1 mx-auto shadow-sm transition-colors">
                             <i class="fa-solid fa-magnifying-glass"></i>검색
                         </button>
                     </td>
@@ -1567,11 +1619,6 @@
                 const sell = Number(p.sellPrice || 0);
                 const manualLowest = Number(p.manualLowestPrice || 0);
                 
-                const profitVsLowest = manualLowest - sell; // Changed
-                const profitText = profitVsLowest >= 0 ? `+₩${profitVsLowest.toLocaleString()}` : `-₩${Math.abs(profitVsLowest).toLocaleString()}`;
-                const profitColor = profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'; // Changed
-
-
                 const isLowStock = stock <= 5;
                 const defaultImg = `https://placehold.co/300x200/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
                 const imgSrc = p.image || defaultImg;
@@ -1615,7 +1662,7 @@
                             </div>
                             <div>
                                 <span class="text-blue-800 font-semibold">판매수익:</span>
-                                <span class="font-bold ${profitColor} ml-1">${profitText}</span>
+                                <span class="font-bold ${unitProfit >= 0 ? 'text-blue-600' : 'text-red-500'} ml-1">${unitProfit >= 0 ? '+' : ''}₩${unitProfit.toLocaleString()}</span>
                             </div>
                         </div>
 
