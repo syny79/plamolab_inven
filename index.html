@@ -892,20 +892,14 @@
         let unsubscribeDoc = null;
         let unsubscribeScan = null;
         let lastHandledScanTimestamp = 0;
-
-        // 허용된 이메일 주소 배열 (여러 개 추가 가능)
-        const ALLOWED_EMAILS = [
-            'syny79@gmail.com'
-        ];
+        
+        // 데이터 강제 초기화(덮어쓰기) 방지를 위한 동기화 완료 안전장치 플래그
+        let isDataLoadedFromCloud = false; 
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // 로그인 허용 이메일 체크
-                if (!ALLOWED_EMAILS.includes(user.email)) {
-                    window.showToast('⚠️ 접근 권한이 없는 계정입니다.', 'warning');
-                    signOut(auth);
-                    return;
-                }
+                // 특정 이메일 제한(ALLOWED_EMAILS) 하드코딩 로직 삭제 완료. 
+                // 이제 로그인한 유저는 고유 ID(uid)별로 따로 데이터를 관리합니다.
 
                 currentUser = user;
                 window.updateAuthUI(true, user.displayName || user.email || '관리자 님');
@@ -928,15 +922,20 @@
                             localStorage.setItem('pramo_workshop_banner_v3', JSON.stringify(data.bannerConfig));
                         }
 
+                        // 데이터를 완벽히 불러왔을 때만 저장을 허용하도록 스위치 ON
+                        isDataLoadedFromCloud = true; 
                         window.renderBanner();
                         window.renderCategories();
                         window.renderProducts();
                         window.updateStats();
                     } else {
+                        // 계정 최초 생성 시 빈 배열 저장 허용
+                        isDataLoadedFromCloud = true; 
                         window.syncToFirestore();
                     }
                 }, (error) => {
                     console.error("Firestore sync error:", error);
+                    window.showToast("데이터베이스 연결 오류가 발생했습니다.", "warning");
                 });
 
                 const scanDocRef = doc(db, "live_scans", user.uid);
@@ -952,6 +951,7 @@
 
             } else {
                 currentUser = null;
+                isDataLoadedFromCloud = false; // 로그아웃 시 리셋
                 if (unsubscribeDoc) { unsubscribeDoc(); unsubscribeDoc = null; }
                 if (unsubscribeScan) { unsubscribeScan(); unsubscribeScan = null; }
                 window.updateAuthUI(false);
@@ -978,13 +978,15 @@
 
         window.handleLogout = async function() {
             try {
+                isDataLoadedFromCloud = false; // 안전장치 초기화
                 await signOut(auth);
                 window.showToast('로그아웃 되었습니다.', 'info');
             } catch (error) { console.error(error); }
         };
 
         window.syncToFirestore = async function() {
-            if (!currentUser) return;
+            // DB 데이터 로드 전에 로컬의 빈 데이터를 클라우드에 덮어쓰는(DB 날아가는) 버그 차단
+            if (!currentUser || !isDataLoadedFromCloud) return; 
             try {
                 const userDocRef = doc(db, "inventories", currentUser.uid);
                 await setDoc(userDocRef, {
