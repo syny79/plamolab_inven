@@ -200,14 +200,20 @@
             <!-- Main Content Area -->
             <main class="flex-1 space-y-4 min-w-0">
                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
-                    <div class="relative w-full md:w-96">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
-                        <input type="text" id="search-input" oninput="handleSearch()" placeholder="상품명, 바코드, 카테고리, 위치, 브랜드 검색..." 
-                            class="w-full pl-10 pr-24 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
-                        <button onclick="quickBarcodeSearch()" class="absolute right-1 top-1 bottom-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-md border border-blue-200 transition-colors flex items-center space-x-1">
-                            <i class="fa-solid fa-barcode"></i>
-                            <span>조회</span>
-                        </button>
+                    <div class="relative w-full md:w-96 flex items-center space-x-2">
+                        <div class="relative w-full">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                            <input type="text" id="search-input" oninput="handleSearch()" placeholder="상품명, 바코드, 카테고리, 위치, 브랜드 검색..." 
+                                class="w-full pl-10 pr-24 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                            <button onclick="quickBarcodeSearch()" class="absolute right-1 top-1 bottom-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-md border border-blue-200 transition-colors flex items-center space-x-1">
+                                <i class="fa-solid fa-barcode"></i>
+                                <span>조회</span>
+                            </button>
+                        </div>
+                        <label class="flex items-center space-x-1 text-xs whitespace-nowrap">
+                            <input type="checkbox" id="exclude-overseas-search" class="w-3 h-3 rounded text-blue-600 focus:ring-blue-500">
+                            <span class="text-slate-600">해외제외</span>
+                        </label>
                     </div>
 
                     <div class="flex items-center space-x-2 w-full md:w-auto justify-end">
@@ -245,7 +251,7 @@
                 </div>
 
                 <!-- 1. Table View Container (Top Scrollbar + Freeze Panes applied) -->
-                <div id="table-view-container" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div id="table-view-container" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[75vh]">
                     
                     <!-- Top Horizontal Scrollbar Tracker -->
                     <div id="table-top-scrollbar" class="overflow-x-auto custom-scrollbar bg-slate-100 border-b border-slate-200">
@@ -253,7 +259,7 @@
                     </div>
 
                     <!-- Main Table Wrapper (Vertical height limit & sticky headers) -->
-                    <div id="table-scroll-wrapper" class="overflow-auto custom-scrollbar max-h-[68vh] relative">
+                    <div id="table-scroll-wrapper" class="overflow-auto custom-scrollbar flex-1 relative">
                         <table class="w-full text-left text-xs border-collapse min-w-max">
                             <thead class="font-bold uppercase tracking-wider shadow-sm z-30 relative">
                                 <tr>
@@ -328,7 +334,12 @@
                 <div class="flex gap-4 items-start">
                     <img id="detail-image" src="" alt="상품 이미지" class="w-28 h-28 object-cover rounded-xl border border-slate-200 bg-slate-50 flex-shrink-0 shadow-sm" style="object-position: center 50%;">
                     <div class="space-y-1.5 flex-1 min-w-0">
-                        <h2 id="detail-name" class="text-lg font-bold text-slate-900 leading-snug break-words">상품명</h2>
+                        <div class="flex justify-between items-start">
+                            <h2 id="detail-name" class="text-lg font-bold text-slate-900 leading-snug break-words">상품명</h2>
+                            <button id="detail-search-btn" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded border border-indigo-700 text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-1 shadow-sm transition-colors whitespace-nowrap flex-shrink-0 ml-2">
+                                <i class="fa-solid fa-magnifying-glass"></i>검색
+                            </button>
+                        </div>
                         <div class="flex items-center space-x-1.5 text-xs text-slate-500">
                             <i class="fa-solid fa-barcode text-slate-400"></i>
                             <span id="detail-barcode" class="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-bold">000000000000</span>
@@ -662,7 +673,7 @@
         </div>
     </div>
 
-    <!-- 4. Admin Modal & Others (Settings, Scanner, Data) -->
+    <!-- 4. Admin Modal -->
     <div id="admin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
@@ -1363,7 +1374,87 @@
             }
         }
 
-        // 최저가 검색 모의 기능 (API 호출 대용)
+        // 최저가 검색 기능 (네이버 오픈 API 실시간 연동)
+        async function searchLowestPriceWithNaver(id) {
+            const idx = window.products.findIndex(p => p.id === id);
+            if (idx === -1) return;
+            
+            const p = window.products[idx];
+            const keyword = p.searchKeyword || p.name; 
+
+            if (!keyword) {
+                showToast('검색어나 상품명이 지정되지 않았습니다.', 'warning');
+                return;
+            }
+
+            const excludeOverseas = document.getElementById('exclude-overseas-search')?.checked;
+
+            showToast(`'${keyword}' 최저가 검색 중...`, 'info');
+            
+            // ▼ 발급받은 실제 네이버 API 키 값으로 변경하세요 ▼
+            const clientId = "여기에_Client_ID_입력"; 
+            const clientSecret = "여기에_Client_Secret_입력";
+
+            // 해외 제외 옵션이 체크되어 있으면 필터 적용
+            let apiUrl = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=1&sort=asc`;
+            if (excludeOverseas) {
+                 apiUrl += `&exclude=cbshop`;
+            }
+
+            // 브라우저 CORS 에러 우회를 위한 퍼블릭 프록시 적용
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+
+            try {
+                const response = await fetch(proxyUrl, {
+                    headers: {
+                        "X-Naver-Client-Id": clientId,
+                        "X-Naver-Client-Secret": clientSecret
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.items && data.items.length > 0) {
+                    const lowestPrice = parseInt(data.items[0].lprice, 10);
+                    const link = data.items[0].link;
+                    
+                    window.products[idx].autoLowestPrice = lowestPrice;
+                    window.products[idx].lowestPriceUrl = link;
+                    // 검색 완료 후 최저가(수동) 칸에도 값을 복사해 줌
+                    window.products[idx].manualLowestPrice = lowestPrice;
+                    window.products[idx].updatedAt = Date.now();
+
+                    saveProducts();
+                    renderProducts();
+                    
+                    // 디테일 모달이 열려 있다면 디테일 정보도 업데이트
+                    if(activeDetailProductId === id){
+                         openDetailModal(id);
+                    }
+
+                    showToast(`'${keyword}' 최저가 정보 업데이트 완료! (₩${lowestPrice.toLocaleString()})`, 'success');
+                } else {
+                    showToast('네이버 쇼핑에서 검색된 결과가 없습니다.', 'warning');
+                }
+            } catch (error) {
+                console.error("Naver API Error:", error);
+                showToast('최저가 검색에 실패했습니다. (API 키 또는 프록시 확인 필요)', 'warning');
+            }
+        }
+
+        // 공통 검색 기능
+        function performSearch(id) {
+             const excludeOverseas = document.getElementById('exclude-overseas-search')?.checked;
+             if (excludeOverseas) {
+                  // 해외 제외시 API 검색 로직을 타야함
+                  searchLowestPriceWithNaver(id);
+             } else {
+                  // 해외 포함인 경우 (기존 모의 로직 유지)
+                  searchLowestPrice(id);
+             }
+        }
+
+        // 기존 모의(Mock) 최저가 검색 기능
         async function searchLowestPrice(id) {
             const idx = window.products.findIndex(p => p.id === id);
             if (idx === -1) return;
@@ -1378,11 +1469,6 @@
 
             showToast(`'${keyword}' 최저가 검색 중...`, 'info');
             
-            /*
-                주의: 브라우저(Front-end)에서 직접 외부 포털을 크롤링하는 것은 CORS 정책에 의해 차단됩니다.
-                실무에서는 Node.js/Python 기반 API 서버를 거치거나 네이버 쇼핑 오픈 API를 활용해야 합니다.
-                여기서는 기능을 보여주기 위한 모의(Mock) 데이터 및 네이버 쇼핑 외부 URL 링크를 생성합니다.
-            */
             setTimeout(() => {
                 // 모의(Mock) 최저가: 판매가의 80% ~ 95% 사이의 임의 가격 형성
                 let mockPrice = p.sellPrice > 0 ? Math.floor(p.sellPrice * (0.8 + Math.random() * 0.15)) : Math.floor(Math.random() * 20000) + 5000;
@@ -1398,6 +1484,11 @@
 
                 saveProducts();
                 renderProducts();
+                
+                 if(activeDetailProductId === id){
+                         openDetailModal(id);
+                    }
+
                 showToast(`'${keyword}' 최저가 정보가 업데이트 되었습니다!`, 'success');
             }, 1000);
         }
@@ -1498,7 +1589,7 @@
                     
                     <td class="p-2"><input type="text" value="${searchKeyword}" onchange="updateProductField('${p.id}', 'searchKeyword', this.value)" onclick="event.stopPropagation()" class="w-24 text-xs border border-slate-200 rounded p-1.5 bg-white focus:ring-1 focus:ring-blue-500" placeholder="검색어"></td>
                     <td class="p-2 text-center" onclick="event.stopPropagation()">
-                        <button onclick="searchLowestPrice('${p.id}')" class="px-2 py-1.5 bg-indigo-600 text-white rounded border border-indigo-700 text-[10px] font-bold hover:bg-indigo-700 flex items-center justify-center gap-1 mx-auto shadow-sm transition-colors">
+                        <button onclick="performSearch('${p.id}')" class="px-2 py-1.5 bg-indigo-600 text-white rounded border border-indigo-700 text-[10px] font-bold hover:bg-indigo-700 flex items-center justify-center gap-1 mx-auto shadow-sm transition-colors">
                             <i class="fa-solid fa-magnifying-glass"></i>검색
                         </button>
                     </td>
@@ -1513,7 +1604,7 @@
                     <td class="p-3 text-right font-mono text-slate-600">₩${cost.toLocaleString()}</td>
                     <td class="p-3 text-right font-mono font-bold text-slate-900">₩${sell.toLocaleString()}</td>
                     <td class="p-3 text-right font-mono bg-blue-50/50">
-                        <div class="font-bold text-sm ${profitVsLowest >= 0 ? 'text-blue-600' : 'text-red-500'}">₩${profitVsLowest.toLocaleString()}</div>
+                        <div class="font-bold text-sm ${profitVsLowest >= 0 ? 'text-blue-600' : 'text-red-500'}">${profitVsLowest > 0 ? '+' : ''}₩${profitVsLowest.toLocaleString()}</div>
                     </td>
                     
                     <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600">${p.category || '미지정'}</span></td>
@@ -1593,7 +1684,7 @@
                             </div>
                             <div>
                                 <span class="text-blue-800 font-semibold">판매수익:</span>
-                                <span class="font-bold ${profitVsLowest >= 0 ? 'text-blue-700' : 'text-red-500'} ml-1">₩${profitVsLowest.toLocaleString()}</span>
+                                <span class="font-bold ${profitVsLowest >= 0 ? 'text-blue-700' : 'text-red-500'} ml-1">${profitVsLowest > 0 ? '+' : ''}₩${profitVsLowest.toLocaleString()}</span>
                             </div>
                         </div>
                         <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -1660,6 +1751,11 @@
             const totalMargin = totalSell > 0 ? ((totalProfit / totalSell) * 100).toFixed(1) : 0;
 
             document.getElementById('detail-name').textContent = product.name || '상품명 없음';
+            
+            // 검색 버튼 이벤트 리스너 업데이트
+            const searchBtn = document.getElementById('detail-search-btn');
+            searchBtn.onclick = () => performSearch(id);
+
             document.getElementById('detail-barcode').textContent = product.barcode || '-';
             document.getElementById('detail-category-badge').textContent = product.category || '미지정';
             document.getElementById('detail-spec-badge').textContent = product.spec || '규격 없음';
@@ -1675,7 +1771,7 @@
             document.getElementById('detail-manual-lowest').textContent = `₩${manualLowest.toLocaleString()}`;
             
             const detailProfitElem = document.getElementById('detail-profit-lowest');
-            detailProfitElem.textContent = `₩${profitVsLowest.toLocaleString()}`;
+            detailProfitElem.textContent = `${profitVsLowest > 0 ? '+' : ''}₩${profitVsLowest.toLocaleString()}`;
             detailProfitElem.className = `font-bold ${profitVsLowest >= 0 ? 'text-blue-700' : 'text-red-500'}`;
             
             const urlContainer = document.getElementById('detail-lowest-url-container');
