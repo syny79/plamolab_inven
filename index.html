@@ -313,6 +313,28 @@
                         </button>
                     </div>
                 </div>
+                
+                <!-- Pagination Controls -->
+                <div id="pagination-controls" class="hidden flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm">
+                    <div class="flex flex-1 justify-between sm:hidden">
+                        <button onclick="changePage(currentPage - 1)" class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">이전</button>
+                        <button onclick="changePage(currentPage + 1)" class="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">다음</button>
+                    </div>
+                    <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-xs text-slate-700">
+                                전체 <span id="page-total-items" class="font-bold">0</span>개 항목 중
+                                <span id="page-start-index" class="font-bold">0</span> - <span id="page-end-index" class="font-bold">0</span>번째 노출
+                            </p>
+                        </div>
+                        <div>
+                            <nav id="pagination-numbers" class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                <!-- Pagination buttons rendered dynamically -->
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+
             </main>
         </div>
     </div>
@@ -893,14 +915,10 @@
         let unsubscribeScan = null;
         let lastHandledScanTimestamp = 0;
         
-        // 데이터 강제 초기화(덮어쓰기) 방지를 위한 동기화 완료 안전장치 플래그
         let isDataLoadedFromCloud = false; 
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // 특정 이메일 제한(ALLOWED_EMAILS) 하드코딩 로직 삭제 완료. 
-                // 이제 로그인한 유저는 고유 ID(uid)별로 따로 데이터를 관리합니다.
-
                 currentUser = user;
                 window.updateAuthUI(true, user.displayName || user.email || '관리자 님');
                 window.showToast(`${user.displayName || '관리자'} 님 환영합니다!`, 'success');
@@ -922,14 +940,12 @@
                             localStorage.setItem('pramo_workshop_banner_v3', JSON.stringify(data.bannerConfig));
                         }
 
-                        // 데이터를 완벽히 불러왔을 때만 저장을 허용하도록 스위치 ON
                         isDataLoadedFromCloud = true; 
                         window.renderBanner();
                         window.renderCategories();
                         window.renderProducts();
                         window.updateStats();
                     } else {
-                        // 계정 최초 생성 시 빈 배열 저장 허용
                         isDataLoadedFromCloud = true; 
                         window.syncToFirestore();
                     }
@@ -951,7 +967,7 @@
 
             } else {
                 currentUser = null;
-                isDataLoadedFromCloud = false; // 로그아웃 시 리셋
+                isDataLoadedFromCloud = false;
                 if (unsubscribeDoc) { unsubscribeDoc(); unsubscribeDoc = null; }
                 if (unsubscribeScan) { unsubscribeScan(); unsubscribeScan = null; }
                 window.updateAuthUI(false);
@@ -978,14 +994,13 @@
 
         window.handleLogout = async function() {
             try {
-                isDataLoadedFromCloud = false; // 안전장치 초기화
+                isDataLoadedFromCloud = false; 
                 await signOut(auth);
                 window.showToast('로그아웃 되었습니다.', 'info');
             } catch (error) { console.error(error); }
         };
 
         window.syncToFirestore = async function() {
-            // DB 데이터 로드 전에 로컬의 빈 데이터를 클라우드에 덮어쓰는(DB 날아가는) 버그 차단
             if (!currentUser || !isDataLoadedFromCloud) return; 
             try {
                 const userDocRef = doc(db, "inventories", currentUser.uid);
@@ -1023,7 +1038,20 @@
 
         const sampleProducts = [
             { id: '1', barcode: '8801043014830', name: '농심 신라면 5입', searchKeyword: '농심 신라면', autoLowestPrice: 3500, manualLowestPrice: 3500, lowestPriceUrl: 'https://search.shopping.naver.com/search/all?query=%EB%86%8D%EC%8B%AC%20%EC%8B%A0%EB%9D%BC%EB%A9%B4', category: '식품', spec: '120g*5', stock: 24, costPrice: 3800, sellPrice: 4500, location: 'A-1-1', supplier: '농심', memo: '인기 라면 품목', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300&auto=format&fit=crop&q=60', imagePositionY: 50, updatedAt: Date.now() },
-            { id: '2', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', searchKeyword: 'HG 뉴건담', autoLowestPrice: 20000, manualLowestPrice: 20000, lowestPriceUrl: 'https://search.shopping.naver.com/search/all?query=HG%20%EB%89%B4%EA%B1%B4%EB%8B%B4', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', imagePositionY: 10, updatedAt: Date.now() - 3000 }
+            { id: '2', barcode: '4573102618023', name: 'HGUC 1/144 뉴 건담', searchKeyword: 'HG 뉴건담', autoLowestPrice: 20000, manualLowestPrice: 20000, lowestPriceUrl: 'https://search.shopping.naver.com/search/all?query=HG%20%EB%89%B4%EA%B1%B4%EB%8B%B4', category: '프라모델', spec: '1/144 스케일', stock: 8, costPrice: 22000, sellPrice: 28800, location: 'C-3-1', supplier: '반다이', memo: '인기 프라모델', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300&auto=format&fit=crop&q=60', imagePositionY: 10, updatedAt: Date.now() - 3000 },
+            { id: '3', barcode: '4573102635440', name: 'MG 1/100 사자비 Ver.Ka', searchKeyword: 'MG 사자비 버카', autoLowestPrice: 85000, manualLowestPrice: 85000, lowestPriceUrl: '', category: '프라모델', spec: '1/100 스케일', stock: 3, costPrice: 78000, sellPrice: 99000, location: 'C-3-2', supplier: '반다이', memo: '고가 상품', image: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?w=300', imagePositionY: 20, updatedAt: Date.now() - 4000 },
+            { id: '4', barcode: '8801043015555', name: '타미야 무광 탑코트', searchKeyword: '타미야 무광 탑코트', autoLowestPrice: 6500, manualLowestPrice: 6500, lowestPriceUrl: '', category: '공구/케미컬', spec: '100ml', stock: 15, costPrice: 4500, sellPrice: 8000, location: 'B-1-1', supplier: '타미야', memo: '필수 마감재', image: 'https://placehold.co/300x200?text=TopCoat', imagePositionY: 50, updatedAt: Date.now() - 5000 },
+            { id: '5', barcode: '8801043015556', name: '타미야 패널라인 액센트 블랙', searchKeyword: '타미야 패널라인 블랙', autoLowestPrice: 4500, manualLowestPrice: 4500, lowestPriceUrl: '', category: '공구/케미컬', spec: '40ml', stock: 10, costPrice: 3000, sellPrice: 5500, location: 'B-1-2', supplier: '타미야', memo: '먹선 도료', image: 'https://placehold.co/300x200?text=PanelLine', imagePositionY: 50, updatedAt: Date.now() - 6000 },
+            { id: '6', barcode: '8801043015557', name: '군제 락카 신너 400', searchKeyword: '군제 락카 신너 400', autoLowestPrice: 9500, manualLowestPrice: 9500, lowestPriceUrl: '', category: '공구/케미컬', spec: '400ml', stock: 5, costPrice: 7000, sellPrice: 11000, location: 'B-1-3', supplier: '기타', memo: '희석제', image: 'https://placehold.co/300x200?text=Thinner', imagePositionY: 50, updatedAt: Date.now() - 7000 },
+            { id: '7', barcode: '8801043015558', name: '프라모델 전용 니퍼', searchKeyword: '프라모델 니퍼', autoLowestPrice: 25000, manualLowestPrice: 25000, lowestPriceUrl: '', category: '공구/케미컬', spec: '미지정', stock: 8, costPrice: 18000, sellPrice: 32000, location: 'B-2-1', supplier: '타미야', memo: '절삭 공구', image: 'https://placehold.co/300x200?text=Nipper', imagePositionY: 50, updatedAt: Date.now() - 8000 },
+            { id: '8', barcode: '8801043015559', name: '아트 나이프', searchKeyword: '아트 나이프', autoLowestPrice: 4000, manualLowestPrice: 4000, lowestPriceUrl: '', category: '공구/케미컬', spec: '미지정', stock: 20, costPrice: 2500, sellPrice: 5000, location: 'B-2-2', supplier: '타미야', memo: '정밀 커팅', image: 'https://placehold.co/300x200?text=Knife', imagePositionY: 50, updatedAt: Date.now() - 9000 },
+            { id: '9', barcode: '8801043015560', name: '사포 세트 (400, 600, 800)', searchKeyword: '프라모델 사포 세트', autoLowestPrice: 3500, manualLowestPrice: 3500, lowestPriceUrl: '', category: '공구/케미컬', spec: '미지정', stock: 30, costPrice: 2000, sellPrice: 4500, location: 'B-2-3', supplier: '타미야', memo: '표면 정리', image: 'https://placehold.co/300x200?text=Sandpaper', imagePositionY: 50, updatedAt: Date.now() - 10000 },
+            { id: '10', barcode: '8801043015561', name: '마스킹 테이프 6mm', searchKeyword: '마스킹 테이프 6mm', autoLowestPrice: 2000, manualLowestPrice: 2000, lowestPriceUrl: '', category: '공구/케미컬', spec: '6mm', stock: 25, costPrice: 1200, sellPrice: 2500, location: 'B-3-1', supplier: '타미야', memo: '도색 마스킹', image: 'https://placehold.co/300x200?text=Tape', imagePositionY: 50, updatedAt: Date.now() - 11000 },
+            { id: '11', barcode: '8801043015562', name: '도색 집게 (10개입)', searchKeyword: '도색 집게', autoLowestPrice: 5000, manualLowestPrice: 5000, lowestPriceUrl: '', category: '공구/케미컬', spec: '10개입', stock: 15, costPrice: 3000, sellPrice: 6500, location: 'B-3-2', supplier: '기타', memo: '도색용', image: 'https://placehold.co/300x200?text=Clip', imagePositionY: 50, updatedAt: Date.now() - 12000 },
+            { id: '12', barcode: '8801043015563', name: '에어브러시 청소용 붓', searchKeyword: '에어브러시 청소 붓', autoLowestPrice: 3000, manualLowestPrice: 3000, lowestPriceUrl: '', category: '공구/케미컬', spec: '미지정', stock: 12, costPrice: 1500, sellPrice: 4000, location: 'B-3-3', supplier: '기타', memo: '세척 도구', image: 'https://placehold.co/300x200?text=Brush', imagePositionY: 50, updatedAt: Date.now() - 13000 },
+            { id: '13', barcode: '8801043015564', name: '조색 접시 (10개입)', searchKeyword: '도료 조색 접시', autoLowestPrice: 1500, manualLowestPrice: 1500, lowestPriceUrl: '', category: '공구/케미컬', spec: '10개입', stock: 40, costPrice: 800, sellPrice: 2000, location: 'B-4-1', supplier: '기타', memo: '조색용', image: 'https://placehold.co/300x200?text=Plate', imagePositionY: 50, updatedAt: Date.now() - 14000 },
+            { id: '14', barcode: '8801043015565', name: '스포이드 (10개입)', searchKeyword: '도료 스포이드', autoLowestPrice: 1000, manualLowestPrice: 1000, lowestPriceUrl: '', category: '공구/케미컬', spec: '10개입', stock: 50, costPrice: 500, sellPrice: 1500, location: 'B-4-2', supplier: '기타', memo: '도료 이동', image: 'https://placehold.co/300x200?text=Dropper', imagePositionY: 50, updatedAt: Date.now() - 15000 },
+            { id: '15', barcode: '8801043015566', name: '군제 서페이서 1000', searchKeyword: '군제 서페이서 1000', autoLowestPrice: 6000, manualLowestPrice: 6000, lowestPriceUrl: '', category: '도료/에어브러시', spec: '170ml', stock: 10, costPrice: 4500, sellPrice: 7500, location: 'D-1-1', supplier: '기타', memo: '밑색 작업', image: 'https://placehold.co/300x200?text=Surfacer', imagePositionY: 50, updatedAt: Date.now() - 16000 },
         ];
 
         window.products = [];
@@ -1037,6 +1065,10 @@
         let confirmResolver = null;
         let selectedProductIds = new Set();
 
+        // Pagination variables
+        let currentPage = 1;
+        const itemsPerPage = 12;
+
         document.addEventListener('DOMContentLoaded', () => {
             loadLocalData();
             renderBanner();
@@ -1047,7 +1079,6 @@
             setupTableScrollSync();
         });
 
-        // 상단 가로 스크롤 동기화
         function setupTableScrollSync() {
             const topScroll = document.getElementById('table-top-scrollbar');
             const topContent = document.getElementById('table-top-scrollbar-content');
@@ -1124,6 +1155,7 @@
                 try { window.bannerConfig = JSON.parse(storedBanner); } catch(e) { window.bannerConfig = { ...defaultBannerConfig }; }
             }
             selectedProductIds.clear();
+            currentPage = 1;
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(MASTER_KEY);
 
@@ -1150,7 +1182,6 @@
             if (typeof window.syncToFirestore === 'function') window.syncToFirestore();
         }
 
-        // 상태 통계 업데이트
         function updateStats() {
             const totalItems = window.products.length;
             const totalQty = window.products.reduce((acc, cur) => acc + Number(cur.stock || 0), 0);
@@ -1241,7 +1272,6 @@
             showToast('가로 배너 설정이 반영되었습니다.', 'success');
         }
 
-        // 카테고리 렌더링
         function renderCategories() {
             const catContainer = document.getElementById('category-list');
             catContainer.innerHTML = '';
@@ -1257,6 +1287,7 @@
                 }`;
                 btn.onclick = () => {
                     currentCategory = cat;
+                    currentPage = 1; // Reset to page 1 on category change
                     renderCategories();
                     renderProducts();
                 };
@@ -1300,6 +1331,11 @@
             });
         }
 
+        function handleSearch() {
+            currentPage = 1; // Reset to page 1 on search
+            renderProducts();
+        }
+
         function toggleProductSelection(id, isChecked) {
             if (isChecked) selectedProductIds.add(id);
             else selectedProductIds.delete(id);
@@ -1307,13 +1343,22 @@
         }
 
         function toggleSelectAll(isChecked) {
-            const visibleProducts = getFilteredProducts();
+            const filtered = getFilteredProducts();
+            // Sort to match display
+            const sortVal = document.getElementById('sort-select').value;
+            filtered.sort(getSortFunction(sortVal));
+
+            // Select only on the current page
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const visibleProducts = filtered.slice(startIndex, endIndex);
+
             if (isChecked) visibleProducts.forEach(p => selectedProductIds.add(p.id));
             else visibleProducts.forEach(p => selectedProductIds.delete(p.id));
             renderProducts();
         }
 
-        function updateSelectionUI() {
+        function updateSelectionUI(visibleProducts) {
             const count = selectedProductIds.size;
             const btnBatchDelete = document.getElementById('btn-batch-delete');
             const btnBatchEdit = document.getElementById('btn-batch-edit');
@@ -1333,13 +1378,12 @@
             }
 
             if (selectAllCb) {
-                const visible = getFilteredProducts();
-                if (visible.length === 0) {
+                if (visibleProducts.length === 0) {
                     selectAllCb.checked = false;
                     selectAllCb.indeterminate = false;
                 } else {
-                    const visibleSelected = visible.filter(p => selectedProductIds.has(p.id));
-                    if (visibleSelected.length === visible.length) {
+                    const visibleSelected = visibleProducts.filter(p => selectedProductIds.has(p.id));
+                    if (visibleSelected.length === visibleProducts.length) {
                         selectAllCb.checked = true;
                         selectAllCb.indeterminate = false;
                     } else if (visibleSelected.length > 0) {
@@ -1363,12 +1407,17 @@
                 selectedProductIds.clear();
                 saveProducts();
                 renderCategories();
+                
+                // Adjust page if necessary
+                const totalFiltered = getFilteredProducts().length;
+                const maxPage = Math.ceil(totalFiltered / itemsPerPage) || 1;
+                if (currentPage > maxPage) currentPage = maxPage;
+
                 renderProducts();
                 showToast(`${count}개 상품이 성공적으로 삭제되었습니다.`, 'info');
             }
         }
 
-        // 인라인 데이터 업데이트
         function updateProductField(id, field, value) {
             const idx = window.products.findIndex(p => p.id === id);
             if (idx !== -1) {
@@ -1383,7 +1432,6 @@
             }
         }
 
-        // 공통 검색 (API 호출 / Mock 처리)
         async function performSearch(id) {
             const idx = window.products.findIndex(p => p.id === id);
             if (idx === -1) return;
@@ -1400,8 +1448,6 @@
 
             showToast(`'${keyword}' 최저가 검색 중...`, 'info');
             
-            // 실제 네이버 API 연동 (corsproxy.io 우회)
-            // 사용자 API Key를 입력해야 실제 데이터 동작 가능
             const clientId = "YOUR_CLIENT_ID"; 
             const clientSecret = "YOUR_CLIENT_SECRET";
 
@@ -1410,7 +1456,6 @@
                  apiUrl += `&exclude=cbshop`;
             }
 
-            // API Key 미입력 시 Mock 동작 수행
             if (clientId === "YOUR_CLIENT_ID") {
                 setTimeout(() => {
                     let mockPrice = p.sellPrice > 0 ? Math.floor(p.sellPrice * (0.8 + Math.random() * 0.15)) : Math.floor(Math.random() * 20000) + 5000;
@@ -1436,7 +1481,6 @@
                 return;
             }
 
-            // 실제 네이버 쇼핑 API 호출 (프록시 경유)
             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
 
             try {
@@ -1475,16 +1519,8 @@
             }
         }
 
-        function renderProducts() {
-            const tbody = document.getElementById('product-table-body');
-            const gridContainer = document.getElementById('grid-view-container');
-            const emptyState = document.getElementById('empty-state');
-            const sortVal = document.getElementById('sort-select').value;
-
-            let filtered = getFilteredProducts();
-
-            // Sort products
-            filtered.sort((a, b) => {
+        function getSortFunction(sortVal) {
+            return (a, b) => {
                 const costA = Number(a.costPrice || 0);
                 const sellA = Number(a.sellPrice || 0);
                 const manualLowestA = Number(a.manualLowestPrice || 0);
@@ -1507,20 +1543,42 @@
                 if (sortVal === 'cost-desc') return costB - costA;
                 if (sortVal === 'sell-desc') return sellB - sellA;
                 if (sortVal === 'profit-desc') return unitProfitB - unitProfitA;
-                if (sortVal === 'profit-lowest-desc') return profitVsLowestB - profitVsLowestA; // 최저가 대비 수익
+                if (sortVal === 'profit-lowest-desc') return profitVsLowestB - profitVsLowestA;
                 if (sortVal === 'margin-desc') return marginRateB - marginRateA;
                 if (sortVal === 'recent') return (b.updatedAt || 0) - (a.updatedAt || 0);
                 return 0;
-            });
+            };
+        }
 
-            if (filtered.length === 0) {
+        function renderProducts() {
+            const tbody = document.getElementById('product-table-body');
+            const gridContainer = document.getElementById('grid-view-container');
+            const emptyState = document.getElementById('empty-state');
+            const sortVal = document.getElementById('sort-select').value;
+            const paginationControls = document.getElementById('pagination-controls');
+
+            let filtered = getFilteredProducts();
+
+            // Sort products
+            filtered.sort(getSortFunction(sortVal));
+
+            const totalItems = filtered.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            if (totalItems === 0) {
                 emptyState.classList.remove('hidden');
                 document.getElementById('table-view-container').classList.add('hidden');
                 document.getElementById('grid-view-container').classList.add('hidden');
-                updateSelectionUI();
+                paginationControls.classList.add('hidden');
+                updateSelectionUI([]);
                 return;
             } else {
                 emptyState.classList.add('hidden');
+                paginationControls.classList.remove('hidden');
                 if (viewMode === 'table') {
                     document.getElementById('table-view-container').classList.remove('hidden');
                     document.getElementById('grid-view-container').classList.add('hidden');
@@ -1530,8 +1588,14 @@
                 }
             }
 
+            // Pagination slice
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+            const paginatedProducts = filtered.slice(startIndex, endIndex);
+
             tbody.innerHTML = '';
-            filtered.forEach((p, idx) => {
+            paginatedProducts.forEach((p, idx) => {
+                const globalIdx = startIndex + idx + 1; // Display actual number
                 const stock = Number(p.stock || 0);
                 const cost = Number(p.costPrice || 0);
                 const sell = Number(p.sellPrice || 0);
@@ -1564,7 +1628,7 @@
                     <td class="p-3 text-center" onclick="event.stopPropagation()">
                         <input type="checkbox" class="product-select-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" ${isChecked ? 'checked' : ''} onchange="toggleProductSelection('${p.id}', this.checked)">
                     </td>
-                    <td class="p-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="p-3 text-center text-slate-400 font-mono">${globalIdx}</td>
                     <td class="p-2 text-center">
                         <img src="${imgSrc}" onerror="this.src='${defaultImg}'" class="w-10 h-10 object-cover rounded-lg border border-slate-200 mx-auto shadow-sm bg-slate-100" style="object-position: center ${imgPosY}%;">
                     </td>
@@ -1621,12 +1685,16 @@
 
             // Render Card View
             gridContainer.innerHTML = '';
-            filtered.forEach(p => {
+            paginatedProducts.forEach(p => {
                 const stock = Number(p.stock || 0);
                 const cost = Number(p.costPrice || 0);
                 const sell = Number(p.sellPrice || 0);
                 const manualLowest = Number(p.manualLowestPrice || 0);
                 
+                const profitVsLowest = manualLowest - sell; 
+                const profitText = profitVsLowest >= 0 ? `+₩${profitVsLowest.toLocaleString()}` : `-₩${Math.abs(profitVsLowest).toLocaleString()}`;
+                const profitColor = profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'; 
+
                 const isLowStock = stock <= 5;
                 const defaultImg = `https://placehold.co/300x200/f1f5f9/94a3b8?text=${encodeURIComponent((p.name || 'P').charAt(0))}`;
                 const imgSrc = p.image || defaultImg;
@@ -1696,7 +1764,8 @@
                 gridContainer.appendChild(card);
             });
 
-            updateSelectionUI();
+            updateSelectionUI(paginatedProducts);
+            renderPagination(totalPages, totalItems, startIndex, endIndex);
 
             setTimeout(() => {
                 const topContent = document.getElementById('table-top-scrollbar-content');
@@ -1707,6 +1776,84 @@
                 }
             }, 50);
         }
+
+        // Pagination rendering and logic
+        function renderPagination(totalPages, totalItems, startIndex, endIndex) {
+            const pageTotalItems = document.getElementById('page-total-items');
+            const pageStartIndex = document.getElementById('page-start-index');
+            const pageEndIndex = document.getElementById('page-end-index');
+            const nav = document.getElementById('pagination-numbers');
+
+            pageTotalItems.textContent = totalItems;
+            pageStartIndex.textContent = startIndex + 1;
+            pageEndIndex.textContent = endIndex;
+            nav.innerHTML = '';
+
+            // Previous Button
+            const prevBtn = document.createElement('button');
+            prevBtn.className = `relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`;
+            prevBtn.innerHTML = `<span class="sr-only">Previous</span><i class="fa-solid fa-chevron-left h-5 w-5 pt-0.5"></i>`;
+            prevBtn.onclick = () => { if (currentPage > 1) changePage(currentPage - 1); };
+            nav.appendChild(prevBtn);
+
+            // Determine visible page numbers (simple windowing)
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+
+            if (startPage > 1) {
+                nav.appendChild(createPageButton(1));
+                if (startPage > 2) nav.appendChild(createEllipsis());
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                nav.appendChild(createPageButton(i));
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) nav.appendChild(createEllipsis());
+                nav.appendChild(createPageButton(totalPages));
+            }
+
+            // Next Button
+            const nextBtn = document.createElement('button');
+            nextBtn.className = `relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`;
+            nextBtn.innerHTML = `<span class="sr-only">Next</span><i class="fa-solid fa-chevron-right h-5 w-5 pt-0.5"></i>`;
+            nextBtn.onclick = () => { if (currentPage < totalPages) changePage(currentPage + 1); };
+            nav.appendChild(nextBtn);
+        }
+
+        function createPageButton(pageNumber) {
+            const btn = document.createElement('button');
+            const isActive = pageNumber === currentPage;
+            btn.className = isActive 
+                ? 'relative z-10 inline-flex items-center bg-blue-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+                : 'relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:z-20 focus:outline-offset-0';
+            btn.textContent = pageNumber;
+            btn.onclick = () => changePage(pageNumber);
+            return btn;
+        }
+
+        function createEllipsis() {
+            const span = document.createElement('span');
+            span.className = 'relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-300 focus:outline-offset-0';
+            span.textContent = '...';
+            return span;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            renderProducts();
+            
+            // Scroll to top of the content area
+            const contentArea = document.getElementById('table-scroll-wrapper');
+            if (contentArea) contentArea.scrollTop = 0;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
 
         function quickAdjustStock(id, delta) {
             const idx = window.products.findIndex(p => p.id === id);
@@ -1731,9 +1878,9 @@
             const manualLowest = Number(product.manualLowestPrice || 0);
             const lowestUrl = product.lowestPriceUrl || '';
             
-            const profitVsLowest = manualLowest - sell; 
+            const profitVsLowest = manualLowest - sell; // Changed
             const profitText = profitVsLowest >= 0 ? `+₩${profitVsLowest.toLocaleString()}` : `-₩${Math.abs(profitVsLowest).toLocaleString()}`;
-            const profitColor = profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'; 
+            const profitColor = profitVsLowest >= 0 ? 'text-red-500' : 'text-blue-600'; // Changed
 
             const unitProfit = sell - cost;
             const unitMargin = sell > 0 ? ((unitProfit / sell) * 100).toFixed(1) : 0;
@@ -1818,6 +1965,12 @@
                 window.products = window.products.filter(p => p.id !== activeDetailProductId);
                 saveProducts();
                 closeDetailModal();
+                
+                // Adjust page if necessary
+                const totalFiltered = getFilteredProducts().length;
+                const maxPage = Math.ceil(totalFiltered / itemsPerPage) || 1;
+                if (currentPage > maxPage) currentPage = maxPage;
+
                 renderProducts();
                 showToast('상품이 삭제되었습니다.', 'info');
             }
@@ -2042,6 +2195,9 @@
                     location, supplier, image, imagePositionY, memo, updatedAt: Date.now()
                 };
                 window.products.unshift(newProduct);
+                
+                // New item added, jump to first page
+                currentPage = 1;
                 showToast('새 상품이 등록되었습니다.', 'success');
             }
 
@@ -2370,6 +2526,9 @@
                             saveBanner();
                             renderBanner();
                             renderCategories();
+                            
+                            // Go to page 1 after import
+                            currentPage = 1;
                             renderProducts();
                             closeDataModal();
                             showToast('JSON 데이터 복원 완료', 'success');
@@ -2424,6 +2583,9 @@
                         }
 
                         renderCategories();
+                        
+                        // Go to page 1 after import
+                        currentPage = 1;
                         renderProducts();
                         closeDataModal();
                         showToast(`엑셀 데이터를 성공적으로 불러왔습니다!`, 'success');
@@ -2434,7 +2596,12 @@
         }
 
         function exportToExcel() {
-            const exportData = window.products.map((p, index) => {
+            // Note: export should usually export ALL products, not just the current page.
+            // Using window.products or getFilteredProducts() based on your preference. 
+            // We'll export the filtered list so it exports what they see.
+            const filteredProducts = getFilteredProducts();
+            
+            const exportData = filteredProducts.map((p, index) => {
                 const cost = Number(p.costPrice || 0);
                 const sell = Number(p.sellPrice || 0);
                 const stock = Number(p.stock || 0);
@@ -2513,8 +2680,6 @@
             dlAnchorElem.setAttribute("download", `pramo_backup_${Date.now()}.json`);
             dlAnchorElem.click();
         }
-
-        function handleSearch() { renderProducts(); }
 
         function openConfirmModal(title, msg) {
             document.getElementById('confirm-title').textContent = title;
