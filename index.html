@@ -913,7 +913,9 @@
         let currentUser = null;
         let unsubscribeDoc = null;
         let unsubscribeScan = null;
-        let lastHandledScanTimestamp = 0;
+        
+        // 접속 이전의 과거 바코드 스캔 기록 무시를 위해 현재 시간으로 초기화
+        let lastHandledScanTimestamp = Date.now();
         
         let isDataLoadedFromCloud = false; 
 
